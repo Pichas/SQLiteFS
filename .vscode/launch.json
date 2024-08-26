@@ -5,21 +5,6 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Editor",
-            "type": "python",
-            "request": "launch",
-            "module": "src.editor.gui",
-            "justMyCode": true
-        },
-        {
-            "name": "Python C++ Debug",
-            "type": "pythoncpp",
-            "request": "launch",
-            "pythonConfig": "custom",
-            "pythonLaunchName": "Editor",
-            "cppConfig": "default (win) Attach",
-        },
-        {
             "name": "windows",
             "type": "cppvsdbg", // For windows
             "request": "launch",

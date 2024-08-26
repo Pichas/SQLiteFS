@@ -23,9 +23,14 @@ find_package(ZLIB REQUIRED)
 
 set(HEADERS
     sqlitefs/sqlitefs.h
+
 )
 
+
 set(SRC
+    sqlitefs/sqlitefs.cpp
+
+
 )
 
 set(SOURCE_FILES
@@ -35,6 +40,7 @@ set(SOURCE_FILES
 
 add_executable(
     ${PROJECT_NAME}
+    ${SOURCE_FILES}
         main.cpp
 )
 
