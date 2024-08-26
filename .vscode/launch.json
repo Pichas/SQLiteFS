@@ -1,0 +1,41 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Editor",
+            "type": "python",
+            "request": "launch",
+            "module": "src.editor.gui",
+            "justMyCode": true
+        },
+        {
+            "name": "Python C++ Debug",
+            "type": "pythoncpp",
+            "request": "launch",
+            "pythonConfig": "custom",
+            "pythonLaunchName": "Editor",
+            "cppConfig": "default (win) Attach",
+        },
+        {
+            "name": "windows",
+            "type": "cppvsdbg", // For windows
+            "request": "launch",
+            "program": "${command:cmake.launchTargetPath}",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${command:cmake.activeFolderPath}",
+            "environment": [
+                {
+                    "name": "PATH",
+                    "value": "$PATH:${command:cmake.activeFolderPath}"
+                }
+            ],
+            "logging": {
+                "moduleLoad": false
+            }
+        }
+    ]
+}
