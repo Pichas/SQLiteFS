@@ -19,3 +19,71 @@ protected:
 TEST_F(SQLiteFSTestFixture, GetRoot) {
     ASSERT_EQ(db->pwd(), "/");
 }
+
+
+TEST_F(SQLiteFSTestFixture, CreateFolder) {
+    std::vector<std::string> expected;
+
+    ASSERT_EQ(db->pwd(), "/");
+    ASSERT_EQ(db->ls(), expected);
+
+    std::string folder1 = "folder1";
+    expected.push_back(folder1);
+
+    ASSERT_TRUE(db->mkdir(folder1));
+    ASSERT_EQ(db->ls(), expected);
+
+    ASSERT_FALSE(db->mkdir(folder1));
+    ASSERT_EQ(db->ls(), expected);
+
+    std::string folder2 = "folder2";
+    expected.push_back(folder2);
+
+    ASSERT_TRUE(db->mkdir(folder2));
+    ASSERT_EQ(db->ls(), expected);
+}
+
+
+TEST_F(SQLiteFSTestFixture, CreateRemoveFolder) {
+    std::vector<std::string> expected;
+
+    std::string folder1 = "folder1";
+    expected.push_back(folder1);
+
+    ASSERT_TRUE(db->mkdir(folder1));
+    ASSERT_EQ(db->ls(), expected);
+
+    expected.clear();
+
+    ASSERT_TRUE(db->rm(folder1));
+    ASSERT_EQ(db->ls(), expected);
+
+    ASSERT_FALSE(db->rm(folder1));
+    ASSERT_EQ(db->ls(), expected);
+}
+
+TEST_F(SQLiteFSTestFixture, ChangeFolder) {
+    std::vector<std::string> expected;
+
+    std::string folder1 = "folder1";
+    expected.push_back(folder1);
+
+    ASSERT_EQ(db->pwd(), "/");
+    ASSERT_TRUE(db->mkdir("f1"));
+    ASSERT_TRUE(db->mkdir("f2"));
+
+    ASSERT_TRUE(db->cd("f2"));
+
+    ASSERT_EQ(db->pwd(), "/f2");
+
+    ASSERT_FALSE(db->cd("f1"));
+    ASSERT_TRUE(db->mkdir("f1"));
+    ASSERT_TRUE(db->cd("f1"));
+    ASSERT_EQ(db->pwd(), "/f2/f1");
+
+    ASSERT_TRUE(db->cd(".."));
+    ASSERT_EQ(db->pwd(), "/f2");
+
+    ASSERT_TRUE(db->cd(".."));
+    ASSERT_EQ(db->pwd(), "/");
+}
