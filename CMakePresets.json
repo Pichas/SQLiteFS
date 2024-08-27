@@ -6,10 +6,7 @@
             "hidden": true,
             "description": "Base configuration",
             "generator": "Ninja Multi-Config",
-            "binaryDir": "${sourceDir}/build/${presetName}",
-            "cacheVariables": {
-                "BUILD_TESTING": "OFF"
-            }
+            "binaryDir": "${sourceDir}/build/${presetName}"
         },
         {
             "name": "clang",

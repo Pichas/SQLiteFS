@@ -1,5 +1,8 @@
 #include "sqlitefs.h"
 
+#include <utility>
+#include "utils.h"
+
 
 namespace
 {
@@ -14,6 +17,7 @@ const inline std::vector<std::string> INIT_DB{
             "size"      INTEGER,
             "size_raw"  INTEGER,
             PRIMARY KEY("id" AUTOINCREMENT),
+            UNIQUE("parent","name"),
             CONSTRAINT "parent_fk" FOREIGN KEY("parent") REFERENCES "fs"("id") ON UPDATE CASCADE ON DELETE CASCADE
         )
     )query",
@@ -36,14 +40,35 @@ const inline std::vector<std::string> INIT_DB{
         )
     )query",
 
-  R"query(INSERT OR IGNORE INTO "main"."fs" ("id", "name") VALUES ('0','root'))query",
+  R"query(INSERT OR IGNORE INTO fs ("id", "name") VALUES ('0','/'))query",
 };
 
+const inline std::string PWD = R"query(
+        SELECT concat('/', group_concat(n, '/')) FROM (
+            WITH RECURSIVE
+            pwd(i, p, n) AS (
+                SELECT id, parent, name FROM fs WHERE id IS ? and parent not NULL
+                UNION ALL
+                SELECT id, parent, name FROM fs, pwd WHERE fs.id IS pwd.p and parent not NULL
+            )
+            SELECT * FROM pwd ORDER BY i ASC
+        )
+    )query";
 
-//
+
+const inline std::string LS            = R"query(SELECT name FROM fs WHERE parent IS ?)query";
+const inline std::string GET_ID        = R"query(SELECT id FROM fs WHERE parent IS ? AND name IS ?)query";
+const inline std::string GET_PARENT_ID = R"query(SELECT parent FROM fs WHERE id IS ?)query";
+const inline std::string RM            = R"query(DELETE FROM fs WHERE parent IS ? AND name IS ?)query";
+const inline std::string MKDIR         = R"query(INSERT INTO fs (parent, name) VALUES (?, ?))query";
+
+const inline std::string TOUCH         = R"query(INSERT INTO fs (parent, name, attrib) VALUES (?, ?, 1))query";
+const inline std::string SET_FILE_DATA = R"query(INSERT INTO data (id, data) VALUES (?, ?))query";
+
 } // namespace
 
-SQLiteFS::SQLiteFS() : m_db("./data.db", SQLite::OPEN_READWRITE | SQLite::OPEN_CREATE) {
+SQLiteFS::SQLiteFS(std::string path)
+  : m_path(std::move(path)), m_db(m_path, SQLite::OPEN_READWRITE | SQLite::OPEN_CREATE) {
     SQLite::Transaction transaction(m_db);
 
     for (const auto& q : INIT_DB) {
@@ -76,4 +101,122 @@ std::vector<Byte> SQLiteFS::decompress(std::span<const Byte> source, uLongf dest
     }
     spdlog::critical("Can't uncompress data");
     return {};
+}
+
+
+std::string SQLiteFS::pwd() const {
+    std::string result;
+
+    TRY {
+        std::lock_guard   lock(m_mutex);
+        SQLite::Statement query{m_db, PWD};
+        query.bind(1, static_cast<int64_t>(m_cwd));
+        if (query.executeStep()) {
+            result = query.getColumn(0).getString();
+        }
+    };
+    return result;
+}
+
+std::vector<std::string> SQLiteFS::ls() const {
+    std::vector<std::string> content;
+
+    TRY {
+        std::lock_guard   lock(m_mutex);
+        SQLite::Statement query{m_db, LS};
+        query.bind(1, static_cast<int64_t>(m_cwd));
+        while (query.executeStep()) {
+            content.emplace_back(query.getColumn(0).getString());
+        }
+    };
+    return content;
+}
+
+bool SQLiteFS::mkdir(const std::string& name) {
+    bool result = false;
+
+    TRY {
+        std::lock_guard   lock(m_mutex);
+        SQLite::Statement query{m_db, MKDIR};
+        query.bind(1, static_cast<int64_t>(m_cwd));
+        query.bind(2, name);
+        result = query.exec();
+    };
+    return result;
+}
+
+bool SQLiteFS::cd(const std::string& name) {
+    bool result = false;
+
+    TRY {
+        std::lock_guard   lock(m_mutex);
+        SQLite::Statement query{m_db, name == ".." ? GET_PARENT_ID : GET_ID};
+        query.bind(1, static_cast<int64_t>(m_cwd));
+        if (name != "..") {
+            query.bind(2, name);
+        }
+
+        if (query.executeStep()) {
+            m_cwd  = query.getColumn(0).getInt();
+            result = true;
+        }
+    };
+    return result;
+}
+
+bool SQLiteFS::rm(const std::string& name) {
+    bool result = false;
+
+    TRY {
+        std::lock_guard   lock(m_mutex);
+        SQLite::Statement query{m_db, RM};
+        query.bind(1, static_cast<int64_t>(m_cwd));
+        query.bind(2, name);
+        result = query.exec();
+    };
+    return result;
+}
+
+bool SQLiteFS::put(const std::string& name, std::span<const Byte> data) {
+    auto result = TRY {
+        auto compressed = compress(data);
+
+        std::lock_guard     lock(m_mutex);
+        SQLite::Transaction transaction(m_db);
+
+        { // create empty file if doesn't exist
+            SQLite::Statement query{m_db, TOUCH};
+            query.bind(1, static_cast<int64_t>(m_cwd));
+            query.bind(2, name);
+            query.exec();
+        }
+
+
+        std::int32_t id = 0;
+        { // get file id
+            SQLite::Statement query{m_db, GET_ID};
+            query.bind(1, static_cast<int64_t>(m_cwd));
+
+            if (query.executeStep()) {
+                id = query.getColumn(0).getInt();
+            }
+        }
+
+        if (id == 0) {
+            spdlog::critical("can't create a file: {}", name);
+            throw SQLite::Exception("can't create a file");
+        }
+
+        { // save data in the db
+            SQLite::Statement query{m_db, SET_FILE_DATA};
+            query.bind(1, static_cast<int64_t>(id));
+            query.bind(2, compressed.data(), compressed.size());
+            query.exec();
+        }
+
+        transaction.commit();
+        return true;
+    };
+
+    return result ? *result : false;
 }

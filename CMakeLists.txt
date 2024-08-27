@@ -23,14 +23,10 @@ find_package(ZLIB REQUIRED)
 
 set(HEADERS
     sqlitefs/sqlitefs.h
-
 )
-
 
 set(SRC
     sqlitefs/sqlitefs.cpp
-
-
 )
 
 set(SOURCE_FILES
@@ -38,10 +34,9 @@ set(SOURCE_FILES
     ${SRC}
 )
 
-add_executable(
+add_library(
     ${PROJECT_NAME}
     ${SOURCE_FILES}
-        main.cpp
 )
 
 
@@ -53,3 +48,9 @@ target_link_libraries(${PROJECT_NAME}
         SQLiteCpp sqlite3
         ZLIB::ZLIB
 )
+
+option(SQLITEFS_BUILD_TESTS "Build and run tests." ON)
+if (SQLITEFS_BUILD_TESTS)
+    include(CTest)
+    add_subdirectory(tests)
+endif(SQLITEFS_BUILD_TESTS)

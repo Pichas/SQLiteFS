@@ -7,14 +7,19 @@
 #include <zlib.h>
 
 
-#define SQLITEFS SQLiteFS::instance()
-
-
 struct SQLiteFS final {
-    static SQLiteFS& instance() {
-        static SQLiteFS instance;
-        return instance;
-    }
+    SQLiteFS(std::string path = "./data.db");
+
+
+    const std::string& path() const noexcept { return m_path; }
+
+    bool                     mkdir(const std::string& name);
+    bool                     cd(const std::string& name);
+    bool                     rm(const std::string& name);
+    std::string              pwd() const;
+    std::vector<std::string> ls() const;
+
+    bool put(const std::string& name, std::span<const Byte> data);
 
     // void saveChunk(std::size_t id, const std::string& data) {
     //     std::vector<char> compressed = compress(data);
@@ -44,13 +49,12 @@ struct SQLiteFS final {
     // }
 
 private:
-    SQLiteFS();
-
-
     std::vector<Byte> compress(std::span<const Byte> source);
     std::vector<Byte> decompress(std::span<const Byte> source, uLongf destination_length);
 
-    std::mutex       m_mutex;
-    SQLite::Database m_db;
-    std::size_t      m_cwd = 0; // 0 - root
+private:
+    std::string              m_path;
+    std::int32_t             m_cwd = 0; // 0 - root
+    mutable std::mutex       m_mutex;
+    mutable SQLite::Database m_db;
 };
