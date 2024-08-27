@@ -43,13 +43,13 @@ add_library(
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(${PROJECT_NAME}
-    PUBLIC
+    PRIVATE
         spdlog
         SQLiteCpp sqlite3
         ZLIB::ZLIB
 )
 
-option(SQLITEFS_BUILD_TESTS "Build and run tests." ON)
+option(SQLITEFS_BUILD_TESTS "Build tests." ON)
 if (SQLITEFS_BUILD_TESTS)
     include(CTest)
     add_subdirectory(tests)
