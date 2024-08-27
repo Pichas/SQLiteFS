@@ -1,5 +1,4 @@
 #include <filesystem>
-#include <fstream>
 #include <gtest/gtest.h>
 #include <sqlitefs/sqlitefs.h>
 
