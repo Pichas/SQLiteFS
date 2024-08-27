@@ -1,4 +1,4 @@
-#include "sqlitefs.h"
+#include "sqlitefs/sqlitefs.h"
 #include <optional>
 #include <SQLiteCpp/SQLiteCpp.h>
 #include <spdlog/spdlog.h>
@@ -34,7 +34,6 @@ const inline std::vector<std::string> INIT_DB{
             "id"        INTEGER,
             "parent"    INTEGER,
             "name"      TEXT NOT NULL,
-            "ext"       TEXT,
             "attrib"    INTEGER DEFAULT 0,
             "size"      INTEGER,
             "size_raw"  INTEGER,

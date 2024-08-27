@@ -94,10 +94,8 @@ TEST_F(SQLiteFSTestFixture, ChangeFolder) {
 TEST_F(SQLiteFSTestFixture, PutGetFile) {
     ASSERT_EQ(db->pwd(), "/");
 
-    std::ifstream fs("tests/test.txt", std::ios::in | std::ios::binary);
-    ASSERT_TRUE(fs);
-
-    std::vector<std::uint8_t> content{std::istreambuf_iterator<char>(fs), std::istreambuf_iterator<char>()};
+    std::string               data("random test data");
+    std::vector<std::uint8_t> content{data.begin(), data.end()};
 
     ASSERT_TRUE(db->put("test.txt", content));
     auto read_data = db->get("test.txt");

@@ -22,7 +22,7 @@ find_package(ZLIB REQUIRED)
 
 
 set(HEADERS
-    sqlitefs/sqlitefs.h
+    includes/sqlitefs/sqlitefs.h
 )
 
 set(SRC
@@ -41,7 +41,7 @@ add_library(
 
 
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
-target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/includes)
 target_link_libraries(${PROJECT_NAME}
     PRIVATE
         spdlog
