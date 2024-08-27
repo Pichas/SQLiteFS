@@ -19,7 +19,8 @@ struct SQLiteFS final {
     std::string              pwd() const;
     std::vector<std::string> ls() const;
 
-    bool put(const std::string& name, std::span<const Byte> data);
+    bool              put(const std::string& name, std::span<const Byte> data);
+    std::vector<Byte> get(const std::string& name);
 
     // void saveChunk(std::size_t id, const std::string& data) {
     //     std::vector<char> compressed = compress(data);

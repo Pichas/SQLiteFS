@@ -64,6 +64,7 @@ const inline std::string MKDIR         = R"query(INSERT INTO fs (parent, name) V
 
 const inline std::string TOUCH         = R"query(INSERT INTO fs (parent, name, attrib) VALUES (?, ?, 1))query";
 const inline std::string SET_FILE_DATA = R"query(INSERT INTO data (id, data) VALUES (?, ?))query";
+const inline std::string GET_FILE_DATA = R"query(SELECT data FROM data WHERE id IS ?)query";
 
 } // namespace
 
@@ -184,18 +185,24 @@ bool SQLiteFS::put(const std::string& name, std::span<const Byte> data) {
         std::lock_guard     lock(m_mutex);
         SQLite::Transaction transaction(m_db);
 
+        std::int32_t affected = 0;
+
         { // create empty file if doesn't exist
             SQLite::Statement query{m_db, TOUCH};
             query.bind(1, static_cast<int64_t>(m_cwd));
             query.bind(2, name);
-            query.exec();
+            affected = query.exec();
         }
 
+        if (affected == 0) {
+            throw SQLite::Exception("can't touch a file");
+        }
 
         std::int32_t id = 0;
         { // get file id
             SQLite::Statement query{m_db, GET_ID};
             query.bind(1, static_cast<int64_t>(m_cwd));
+            query.bind(2, name);
 
             if (query.executeStep()) {
                 id = query.getColumn(0).getInt();
@@ -203,7 +210,6 @@ bool SQLiteFS::put(const std::string& name, std::span<const Byte> data) {
         }
 
         if (id == 0) {
-            spdlog::critical("can't create a file: {}", name);
             throw SQLite::Exception("can't create a file");
         }
 
@@ -219,4 +225,44 @@ bool SQLiteFS::put(const std::string& name, std::span<const Byte> data) {
     };
 
     return result ? *result : false;
+}
+
+std::vector<Byte> SQLiteFS::get(const std::string& name) {
+
+    auto result = TRY->std::string {
+        std::lock_guard lock(m_mutex);
+
+        std::int32_t id = 0;
+        { // get file id
+            SQLite::Statement query{m_db, GET_ID};
+            query.bind(1, static_cast<int64_t>(m_cwd));
+            query.bind(2, name);
+
+            if (query.executeStep()) {
+                id = query.getColumn(0).getInt();
+            }
+        }
+
+        if (id == 0) {
+            throw SQLite::Exception("can't create a file id");
+        }
+
+        { // load data from the db
+            SQLite::Statement query{m_db, GET_FILE_DATA};
+            query.bind(1, static_cast<int64_t>(id));
+
+            if (query.executeStep()) {
+                return query.getColumn(0).getString();
+            }
+        }
+
+        throw SQLite::Exception("can't read a file data");
+    };
+
+    if (result) {
+        auto span = std::span{reinterpret_cast<const Bytef*>(result->data()), result->size()};
+        return decompress(span, 1000);
+    }
+
+    return {};
 }

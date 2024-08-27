@@ -1,3 +1,4 @@
+#include <fstream>
 #include <gtest/gtest.h>
 #include <sqlitefs/sqlitefs.h>
 
@@ -86,4 +87,20 @@ TEST_F(SQLiteFSTestFixture, ChangeFolder) {
 
     ASSERT_TRUE(db->cd(".."));
     ASSERT_EQ(db->pwd(), "/");
+}
+
+
+TEST_F(SQLiteFSTestFixture, PutGetFile) {
+    ASSERT_EQ(db->pwd(), "/");
+
+    std::ifstream fs("tests/test.txt", std::ios::in | std::ios::binary);
+    ASSERT_TRUE(fs);
+
+    std::vector<Byte> content{std::istreambuf_iterator<char>(fs), std::istreambuf_iterator<char>()};
+
+    ASSERT_TRUE(db->put("test.txt", content));
+    auto read_data = db->get("test.txt");
+
+    ASSERT_EQ(read_data.size(), content.size());
+    ASSERT_EQ(read_data, content);
 }
