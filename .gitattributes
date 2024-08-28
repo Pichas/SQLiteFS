@@ -7,4 +7,4 @@
 
 # Convert to LF line endings on checkout.
 CMakeLists.txt text eol=lf
-*.patch text eol=lf
+*.cmake.patch text eol=lf

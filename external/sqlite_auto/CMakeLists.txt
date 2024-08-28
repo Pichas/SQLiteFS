@@ -16,4 +16,7 @@ option(SQLITECPP_INCLUDE_SCRIPT "Include config & script files." OFF)
 option(SQLITECPP_RUN_CPPCHECK "Run cppcheck C++ static analysis tool." OFF)
 
 FetchContent_MakeAvailable(sqlite_git)
-target_compile_options(SQLiteCpp PRIVATE "-Wno-language-extension-token")
+
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  target_compile_options(SQLiteCpp PRIVATE "-Wno-language-extension-token")
+endif()
