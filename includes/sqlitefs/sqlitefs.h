@@ -15,10 +15,13 @@ struct SQLiteFSNode final {
     std::int64_t  size     = 0;
     std::int64_t  size_raw = 0;
     std::string   compression;
-    struct {
-        bool file : 1 = false;
-        bool ro : 1   = false;
+    struct Attributes {
+        bool file : 1                                      = false;
+        bool ro : 1                                        = false;
+        auto operator<=>(const Attributes&) const noexcept = default;
     } attributes;
+
+    auto operator<=>(const SQLiteFSNode&) const noexcept = default;
 };
 
 struct SQLiteFS final {
@@ -33,13 +36,13 @@ struct SQLiteFS final {
 
     const std::string& path() const noexcept;
 
-    bool                     mkdir(const std::string& name);
-    bool                     cd(const std::string& name);
-    bool                     rm(const std::string& name);
-    std::string              pwd() const;
-    std::vector<std::string> ls() const;
-    bool                     put(const std::string& name, DataInput data, const std::string& alg = "raw");
-    DataOutput               get(const std::string& name) const;
+    bool                      mkdir(const std::string& name);
+    bool                      cd(const std::string& name);
+    bool                      rm(const std::string& name);
+    std::string               pwd() const;
+    std::vector<SQLiteFSNode> ls() const;
+    bool                      put(const std::string& name, DataInput data, const std::string& alg = "raw");
+    DataOutput                get(const std::string& name) const;
 
 
     void registerSaveFunc(const std::string& name, const ConvertFunc& func);

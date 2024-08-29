@@ -26,13 +26,13 @@ TEST_F(SQLiteFSTestFixture, GetRoot) {
 
 
 TEST_F(SQLiteFSTestFixture, CreateFolder) {
-    std::vector<std::string> expected;
+    std::vector<SQLiteFSNode> expected;
 
     ASSERT_EQ(db->pwd(), "/");
     ASSERT_EQ(db->ls(), expected);
 
     std::string folder1 = "folder1";
-    expected.push_back(folder1);
+    expected.emplace_back(SQLiteFSNode{.id = 1, .parent_id = 0, .name = folder1});
 
     ASSERT_TRUE(db->mkdir(folder1));
     ASSERT_EQ(db->ls(), expected);
@@ -41,7 +41,7 @@ TEST_F(SQLiteFSTestFixture, CreateFolder) {
     ASSERT_EQ(db->ls(), expected);
 
     std::string folder2 = "folder2";
-    expected.push_back(folder2);
+    expected.emplace_back(SQLiteFSNode{.id = 2, .parent_id = 0, .name = folder2});
 
     ASSERT_TRUE(db->mkdir(folder2));
     ASSERT_EQ(db->ls(), expected);
@@ -49,10 +49,10 @@ TEST_F(SQLiteFSTestFixture, CreateFolder) {
 
 
 TEST_F(SQLiteFSTestFixture, CreateRemoveFolder) {
-    std::vector<std::string> expected;
+    std::vector<SQLiteFSNode> expected;
 
     std::string folder1 = "folder1";
-    expected.push_back(folder1);
+    expected.emplace_back(SQLiteFSNode{.id = 1, .parent_id = 0, .name = folder1});
 
     ASSERT_TRUE(db->mkdir(folder1));
     ASSERT_EQ(db->ls(), expected);

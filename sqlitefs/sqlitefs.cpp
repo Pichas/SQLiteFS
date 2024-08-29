@@ -80,15 +80,17 @@ struct SQLiteFS::Impl {
         return result;
     }
 
-    std::vector<std::string> ls() const {
-        std::vector<std::string> content;
+    std::vector<SQLiteFSNode> ls() const {
+        std::vector<SQLiteFSNode> content;
 
         TRY {
             std::lock_guard   lock(m_mutex);
             SQLite::Statement query{m_db, LS};
             query.bind(1, static_cast<int64_t>(m_cwd));
-            while (query.executeStep()) {
-                content.emplace_back(query.getColumn(0).getString());
+
+            SQLiteFSNode node;
+            while (getNodeData(query, node)) {
+                content.emplace_back(node);
             }
         };
         return content;
@@ -169,7 +171,7 @@ struct SQLiteFS::Impl {
             { // get file id
                 SQLite::Statement query{m_db, GET_INFO};
                 query.bind(1, static_cast<int64_t>(id));
-                node = getNodeData(query);
+                getNodeData(query, node);
             }
 
             if (node.id == 0) {
@@ -221,22 +223,20 @@ private:
         return {};
     }
 
-    static SQLiteFSNode getNodeData(SQLite::Statement& query) {
-        SQLiteFSNode info;
+    static bool getNodeData(SQLite::Statement& query, SQLiteFSNode& out) {
         if (query.executeStep()) {
-            info.id              = query.getColumn(0).getInt();
-            info.parent_id       = query.getColumn(1).getInt();
-            info.name            = query.getColumn(2).getString();
-            auto attrib          = query.getColumn(3).getInt();
-            info.size            = query.getColumn(4).getInt();
-            info.size_raw        = query.getColumn(5).getInt();
-            info.compression     = query.getColumn(6).getString();
-            info.attributes.file = attrib & (1 << 0);
-            info.attributes.ro   = attrib & (1 << 1);
-        } else {
-            spdlog::error("Cannot get node info");
+            out.id              = query.getColumn(0).getInt();
+            out.parent_id       = query.getColumn(1).getInt();
+            out.name            = query.getColumn(2).getString();
+            auto attrib         = query.getColumn(3).getInt();
+            out.size            = query.getColumn(4).getInt();
+            out.size_raw        = query.getColumn(5).getInt();
+            out.compression     = query.getColumn(6).getString();
+            out.attributes.file = attrib & (1 << 0);
+            out.attributes.ro   = attrib & (1 << 1);
+            return true;
         }
-        return info;
+        return false;
     }
 
 private:
@@ -263,7 +263,7 @@ std::string SQLiteFS::pwd() const {
     return m_impl->pwd();
 }
 
-std::vector<std::string> SQLiteFS::ls() const {
+std::vector<SQLiteFSNode> SQLiteFS::ls() const {
     return m_impl->ls();
 }
 

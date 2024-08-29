@@ -55,7 +55,7 @@ const inline std::string PWD = R"query(
 
 // clang-format off
 
-const inline std::string LS            = R"query(SELECT name FROM fs WHERE parent IS ?)query";
+const inline std::string LS            = R"query(SELECT * FROM fs WHERE parent IS ?)query";
 const inline std::string GET_ID        = R"query(SELECT id FROM fs WHERE parent IS ? AND name IS ?)query";
 const inline std::string GET_PARENT_ID = R"query(SELECT parent FROM fs WHERE id IS ?)query";
 const inline std::string GET_INFO      = R"query(SELECT * FROM fs WHERE id IS ?)query";
