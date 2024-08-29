@@ -29,15 +29,6 @@ const inline std::vector<std::string> INIT_DB{
         )
     )query",
 
-  R"query(
-        CREATE TABLE IF NOT EXISTS "shortcut" (
-            "name"  TEXT,
-            "path"  INTEGER,
-            PRIMARY KEY("name")
-            CONSTRAINT "sc_fk" FOREIGN KEY("path") REFERENCES "fs"("id") ON UPDATE CASCADE ON DELETE CASCADE
-        )
-    )query",
-
   R"query(INSERT OR IGNORE INTO fs ("id", "name") VALUES ('0','/'))query",
 };
 
