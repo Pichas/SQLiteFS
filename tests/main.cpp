@@ -19,9 +19,6 @@ protected:
 
 TEST_F(SQLiteFSTestFixture, GetRoot) {
     ASSERT_EQ(db->pwd(), "/");
-
-
-    //
 }
 
 
@@ -32,7 +29,7 @@ TEST_F(SQLiteFSTestFixture, CreateFolder) {
     ASSERT_EQ(db->ls(), expected);
 
     std::string folder1 = "folder1";
-    expected.emplace_back(SQLiteFSNode{.id = 1, .parent_id = 0, .name = folder1});
+    expected.emplace_back(SQLiteFSNode{.id = 1, .parent_id = 0, .name = folder1}); // NOLINT
 
     ASSERT_TRUE(db->mkdir(folder1));
     ASSERT_EQ(db->ls(), expected);
@@ -41,10 +38,20 @@ TEST_F(SQLiteFSTestFixture, CreateFolder) {
     ASSERT_EQ(db->ls(), expected);
 
     std::string folder2 = "folder2";
-    expected.emplace_back(SQLiteFSNode{.id = 2, .parent_id = 0, .name = folder2});
+    expected.emplace_back(SQLiteFSNode{.id = 2, .parent_id = 0, .name = folder2}); // NOLINT
 
     ASSERT_TRUE(db->mkdir(folder2));
     ASSERT_EQ(db->ls(), expected);
+
+    std::string subfolder = "/" + folder2 + "/" + folder1;
+
+    ASSERT_TRUE(db->mkdir(subfolder));
+    ASSERT_TRUE(db->cd(folder2));
+
+    std::vector<SQLiteFSNode> expected2{{.id = 3, .parent_id = 2, .name = folder1}}; // NOLINT
+    ASSERT_EQ(db->ls(), expected2);
+    ASSERT_EQ(db->ls("."), expected2);
+    ASSERT_EQ(db->ls(".."), expected);
 }
 
 
@@ -52,14 +59,20 @@ TEST_F(SQLiteFSTestFixture, CreateRemoveFolder) {
     std::vector<SQLiteFSNode> expected;
 
     std::string folder1 = "folder1";
-    expected.emplace_back(SQLiteFSNode{.id = 1, .parent_id = 0, .name = folder1});
+    expected.emplace_back(SQLiteFSNode{.id = 1, .parent_id = 0, .name = folder1}); // NOLINT
 
     ASSERT_TRUE(db->mkdir(folder1));
     ASSERT_EQ(db->ls(), expected);
 
+    ASSERT_TRUE(db->cd(folder1));
+    ASSERT_TRUE(db->mkdir(folder1));
+    expected[0].id        = 2;
+    expected[0].parent_id = 1;
+    ASSERT_EQ(db->ls(), expected);
+
     expected.clear();
 
-    ASSERT_TRUE(db->rm(folder1));
+    ASSERT_TRUE(db->rm("/" + folder1 + "/" + folder1));
     ASSERT_EQ(db->ls(), expected);
 
     ASSERT_FALSE(db->rm(folder1));
@@ -90,6 +103,15 @@ TEST_F(SQLiteFSTestFixture, ChangeFolder) {
 
     ASSERT_TRUE(db->cd(".."));
     ASSERT_EQ(db->pwd(), "/");
+
+    ASSERT_TRUE(db->cd("f2/f1"));
+    ASSERT_EQ(db->pwd(), "/f2/f1");
+
+    ASSERT_TRUE(db->cd("/f1"));
+    ASSERT_EQ(db->pwd(), "/f1");
+
+    ASSERT_TRUE(db->cd("/"));
+    ASSERT_EQ(db->pwd(), "/");
 }
 
 
@@ -101,6 +123,16 @@ TEST_F(SQLiteFSTestFixture, PutFile) {
 
     ASSERT_TRUE(db->put("test.txt", content));
     ASSERT_FALSE(db->put("test.txt", content));
+
+    db->mkdir("f1");
+    db->mkdir("f1/f2");
+
+    ASSERT_TRUE(db->put("f1/f2/test.txt", content));
+    ASSERT_FALSE(db->put("f1/f2/test.txt", content));
+
+    db->cd("f1");
+    ASSERT_TRUE(db->put("/f1/f2/test2.txt", content));
+    ASSERT_TRUE(db->put("../test2.txt", content));
 }
 
 
@@ -120,6 +152,17 @@ TEST_F(SQLiteFSTestFixture, PutGetFile) {
     {
         ASSERT_TRUE(db->put("test2.txt", content, "raw"));
         auto read_data = db->get("test2.txt");
+
+        ASSERT_EQ(read_data.size(), content.size());
+        ASSERT_EQ(read_data, content);
+    }
+
+    {
+        db->mkdir("f1");
+        db->mkdir("f1/f2");
+
+        ASSERT_TRUE(db->put("f1/f2/test.txt", content));
+        auto read_data = db->get("f1/f2/test.txt");
 
         ASSERT_EQ(read_data.size(), content.size());
         ASSERT_EQ(read_data, content);

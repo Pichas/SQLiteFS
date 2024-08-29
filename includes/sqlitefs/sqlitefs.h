@@ -40,7 +40,7 @@ struct SQLiteFS final {
     bool                      cd(const std::string& name);
     bool                      rm(const std::string& name);
     std::string               pwd() const;
-    std::vector<SQLiteFSNode> ls() const;
+    std::vector<SQLiteFSNode> ls(const std::string& path = ".") const;
     bool                      put(const std::string& name, DataInput data, const std::string& alg = "raw");
     DataOutput                get(const std::string& name) const;
 
