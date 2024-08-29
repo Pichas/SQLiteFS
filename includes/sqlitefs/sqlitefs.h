@@ -15,11 +15,7 @@ struct SQLiteFSNode final {
     std::int64_t  size     = 0;
     std::int64_t  size_raw = 0;
     std::string   compression;
-    struct Attributes {
-        bool file : 1                                      = false;
-        bool ro : 1                                        = false;
-        auto operator<=>(const Attributes&) const noexcept = default;
-    } attributes;
+    bool          is_file : 1 = false;
 
     auto operator<=>(const SQLiteFSNode&) const noexcept = default;
 };

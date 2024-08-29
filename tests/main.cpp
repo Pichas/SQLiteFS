@@ -124,6 +124,16 @@ TEST_F(SQLiteFSTestFixture, PutFile) {
     ASSERT_TRUE(db->put("test.txt", content));
     ASSERT_FALSE(db->put("test.txt", content));
 
+    auto files = db->ls();
+    ASSERT_EQ(files.size(), 1);
+    ASSERT_EQ(files[0].id, 1);
+    ASSERT_EQ(files[0].parent_id, 0);
+    ASSERT_EQ(files[0].name, "test.txt");
+    ASSERT_GT(files[0].size, 0);
+    ASSERT_GT(files[0].size_raw, 0);
+    ASSERT_TRUE(files[0].is_file);
+
+
     db->mkdir("f1");
     db->mkdir("f1/f2");
 

@@ -251,15 +251,14 @@ private:
 
     static bool getNodeData(SQLite::Statement& query, SQLiteFSNode& out) {
         if (query.executeStep()) {
-            out.id              = query.getColumn(0).getInt();
-            out.parent_id       = query.getColumn(1).getInt();
-            out.name            = query.getColumn(2).getString();
-            auto attrib         = query.getColumn(3).getInt();
-            out.size            = query.getColumn(4).getInt();
-            out.size_raw        = query.getColumn(5).getInt();
-            out.compression     = query.getColumn(6).getString();
-            out.attributes.file = attrib & (1 << 0);
-            out.attributes.ro   = attrib & (1 << 1);
+            out.id          = query.getColumn(0).getInt();
+            out.parent_id   = query.getColumn(1).getInt();
+            out.name        = query.getColumn(2).getString();
+            auto attrib     = query.getColumn(3).getInt();
+            out.size        = query.getColumn(4).getInt();
+            out.size_raw    = query.getColumn(5).getInt();
+            out.compression = query.getColumn(6).getString();
+            out.is_file     = attrib & (1 << 0);
             return true;
         }
         return false;
