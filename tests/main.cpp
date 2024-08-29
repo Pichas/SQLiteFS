@@ -19,6 +19,9 @@ protected:
 
 TEST_F(SQLiteFSTestFixture, GetRoot) {
     ASSERT_EQ(db->pwd(), "/");
+
+
+    //
 }
 
 
@@ -90,15 +93,105 @@ TEST_F(SQLiteFSTestFixture, ChangeFolder) {
 }
 
 
-TEST_F(SQLiteFSTestFixture, PutGetFile) {
+TEST_F(SQLiteFSTestFixture, PutFile) {
     ASSERT_EQ(db->pwd(), "/");
 
     std::string               data("random test data");
     std::vector<std::uint8_t> content{data.begin(), data.end()};
 
     ASSERT_TRUE(db->put("test.txt", content));
-    auto read_data = db->get("test.txt");
+    ASSERT_FALSE(db->put("test.txt", content));
+}
 
-    ASSERT_EQ(read_data.size(), content.size());
-    ASSERT_EQ(read_data, content);
+
+TEST_F(SQLiteFSTestFixture, PutGetFile) {
+    ASSERT_EQ(db->pwd(), "/");
+
+    std::string               data("random test data");
+    std::vector<std::uint8_t> content{data.begin(), data.end()};
+    {
+        ASSERT_TRUE(db->put("test.txt", content, "zlib"));
+        auto read_data = db->get("test.txt");
+
+        ASSERT_EQ(read_data.size(), content.size());
+        ASSERT_EQ(read_data, content);
+    }
+
+    {
+        ASSERT_TRUE(db->put("test2.txt", content, "raw"));
+        auto read_data = db->get("test2.txt");
+
+        ASSERT_EQ(read_data.size(), content.size());
+        ASSERT_EQ(read_data, content);
+    }
+}
+
+TEST_F(SQLiteFSTestFixture, PutGetFileWithCompression) {
+    ASSERT_EQ(db->pwd(), "/");
+
+    std::string               data("random test data");
+    std::vector<std::uint8_t> content{data.begin(), data.end()};
+
+    {
+        ASSERT_TRUE(db->put("test.txt", content));
+        auto read_data = db->get("test.txt");
+
+        ASSERT_EQ(read_data.size(), content.size());
+        ASSERT_EQ(read_data, content);
+    }
+
+    {
+        ASSERT_TRUE(db->put("compressed.txt", content, "zlib"));
+        auto read_data = db->get("compressed.txt");
+
+        ASSERT_EQ(read_data.size(), content.size());
+        ASSERT_EQ(read_data, content);
+    }
+}
+
+
+TEST_F(SQLiteFSTestFixture, PutGetFileWithCustomConvertFunction) {
+    ASSERT_EQ(db->pwd(), "/");
+
+    db->registerSaveFunc("myFunc",
+                         [](SQLiteFS::DataInput data) { return SQLiteFS::DataOutput{data.rbegin(), data.rend()}; });
+
+    db->registerLoadFunc("myFunc",
+                         [](SQLiteFS::DataInput data) { return SQLiteFS::DataOutput{data.rbegin(), data.rend()}; });
+
+    std::string               data("random test data");
+    std::vector<std::uint8_t> content{data.begin(), data.end()};
+
+    {
+        ASSERT_TRUE(db->put("compressed.txt", content, "myFunc"));
+        auto read_data = db->get("compressed.txt");
+
+        ASSERT_EQ(read_data.size(), content.size());
+        ASSERT_EQ(read_data, content);
+    }
+}
+
+
+TEST_F(SQLiteFSTestFixture, PutGetFileWithComplexCustomConvertFunction) {
+    ASSERT_EQ(db->pwd(), "/");
+
+    db->registerSaveFunc("myComplexFunc", [&](SQLiteFS::DataInput data) {
+        auto packed = db->callSaveFunc("zlib", data);
+        return SQLiteFS::DataOutput{packed.rbegin(), packed.rend()};
+    });
+    db->registerLoadFunc("myComplexFunc", [&](SQLiteFS::DataInput data) {
+        auto still_packed = SQLiteFS::DataOutput{data.rbegin(), data.rend()};
+        return db->callLoadFunc("zlib", still_packed);
+    });
+
+    std::string               data("random test data");
+    std::vector<std::uint8_t> content{data.begin(), data.end()};
+
+    {
+        ASSERT_TRUE(db->put("compressed.txt", content, "myComplexFunc"));
+        auto read_data = db->get("compressed.txt");
+
+        ASSERT_EQ(read_data.size(), content.size());
+        ASSERT_EQ(read_data, content);
+    }
 }

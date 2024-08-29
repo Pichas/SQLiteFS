@@ -2,92 +2,11 @@
 #include <optional>
 #include <SQLiteCpp/SQLiteCpp.h>
 #include <spdlog/spdlog.h>
+#include <spdlog/stopwatch.h>
 #include <zconf.h>
-#include <zlib.h>
-
-
-namespace
-{
-struct SQLExceptionCatcher {
-    template<typename Func, class R = std::invoke_result_t<Func>>
-    std::optional<R> operator+(Func&& function) && {
-        try {
-            return function();
-        } catch (std::exception& e) { spdlog::critical("SQL Error: {} ", e.what()); }
-        return {};
-    }
-
-    template<typename Func, class R = std::invoke_result_t<Func>>
-    requires std::is_void_v<R>
-    void operator+(Func&& function) && {
-        try {
-            function();
-        } catch (std::exception& e) { spdlog::critical("SQL Error: {} ", e.what()); }
-    }
-};
-
-#define TRY SQLExceptionCatcher() + [&]()
-
-const inline std::vector<std::string> INIT_DB{
-  R"query(
-        CREATE TABLE IF NOT EXISTS "fs" (
-            "id"        INTEGER,
-            "parent"    INTEGER,
-            "name"      TEXT NOT NULL,
-            "attrib"    INTEGER DEFAULT 0,
-            "size"      INTEGER,
-            "size_raw"  INTEGER,
-            PRIMARY KEY("id" AUTOINCREMENT),
-            UNIQUE("parent","name"),
-            CONSTRAINT "parent_fk" FOREIGN KEY("parent") REFERENCES "fs"("id") ON UPDATE CASCADE ON DELETE CASCADE
-        )
-    )query",
-
-  R"query(
-        CREATE TABLE IF NOT EXISTS "data" (
-            "id"    INTEGER,
-            "data"  BLOB NOT NULL,
-            PRIMARY KEY("id"),
-            CONSTRAINT "file_id" FOREIGN KEY("id") REFERENCES "fs"("id") ON UPDATE CASCADE ON DELETE CASCADE
-        )
-    )query",
-
-  R"query(
-        CREATE TABLE IF NOT EXISTS "shortcut" (
-            "name"  TEXT,
-            "path"  INTEGER,
-            PRIMARY KEY("name")
-            CONSTRAINT "sc_fk" FOREIGN KEY("path") REFERENCES "fs"("id") ON UPDATE CASCADE ON DELETE CASCADE
-        )
-    )query",
-
-  R"query(INSERT OR IGNORE INTO fs ("id", "name") VALUES ('0','/'))query",
-};
-
-const inline std::string PWD = R"query(
-        SELECT concat('/', group_concat(n, '/')) FROM (
-            WITH RECURSIVE
-            pwd(i, p, n) AS (
-                SELECT id, parent, name FROM fs WHERE id IS ? and parent not NULL
-                UNION ALL
-                SELECT id, parent, name FROM fs, pwd WHERE fs.id IS pwd.p and parent not NULL
-            )
-            SELECT * FROM pwd ORDER BY i ASC
-        )
-    )query";
-
-
-const inline std::string LS            = R"query(SELECT name FROM fs WHERE parent IS ?)query";
-const inline std::string GET_ID        = R"query(SELECT id FROM fs WHERE parent IS ? AND name IS ?)query";
-const inline std::string GET_PARENT_ID = R"query(SELECT parent FROM fs WHERE id IS ?)query";
-const inline std::string RM            = R"query(DELETE FROM fs WHERE parent IS ? AND name IS ?)query";
-const inline std::string MKDIR         = R"query(INSERT INTO fs (parent, name) VALUES (?, ?))query";
-
-const inline std::string TOUCH         = R"query(INSERT INTO fs (parent, name, attrib) VALUES (?, ?, 1))query";
-const inline std::string SET_FILE_DATA = R"query(INSERT INTO data (id, data) VALUES (?, ?))query";
-const inline std::string GET_FILE_DATA = R"query(SELECT data FROM data WHERE id IS ?)query";
-
-} // namespace
+#include "compression.h"
+#include "sqlqueries.h"
+#include "utils.h"
 
 
 struct SQLiteFS::Impl {
@@ -157,6 +76,7 @@ struct SQLiteFS::Impl {
                 result = query.getColumn(0).getString();
             }
         };
+
         return result;
     }
 
@@ -174,9 +94,9 @@ struct SQLiteFS::Impl {
         return content;
     }
 
-    bool put(const std::string& name, std::span<const std::uint8_t> data) {
+    bool put(const std::string& name, DataInput data, const std::string& alg) {
         auto result = TRY {
-            auto compressed = compress(data);
+            auto compressed = internalCall(alg, data, m_save_funcs);
 
             std::lock_guard     lock(m_mutex);
             SQLite::Transaction transaction(m_db);
@@ -187,6 +107,9 @@ struct SQLiteFS::Impl {
                 SQLite::Statement query{m_db, TOUCH};
                 query.bind(1, static_cast<int64_t>(m_cwd));
                 query.bind(2, name);
+                query.bind(3, static_cast<std::int64_t>(compressed.size())); // doesn't support uint64_t
+                query.bind(4, static_cast<std::int64_t>(data.size()));       // doesn't support uint64_t
+                query.bind(5, alg);
                 affected = query.exec();
             }
 
@@ -206,7 +129,7 @@ struct SQLiteFS::Impl {
             }
 
             if (id == 0) {
-                throw SQLite::Exception("can't create a file");
+                throw SQLite::Exception("can't get file id");
             }
 
             { // save data in the db
@@ -223,8 +146,8 @@ struct SQLiteFS::Impl {
         return result ? *result : false;
     }
 
-    std::vector<std::uint8_t> get(const std::string& name) const {
-        auto result = TRY->std::string {
+    DataOutput get(const std::string& name) const {
+        auto result = TRY {
             std::lock_guard lock(m_mutex);
 
             std::int32_t id = 0;
@@ -242,62 +165,98 @@ struct SQLiteFS::Impl {
                 throw SQLite::Exception("can't create a file id");
             }
 
+            SQLiteFSNode node;
+            { // get file id
+                SQLite::Statement query{m_db, GET_INFO};
+                query.bind(1, static_cast<int64_t>(id));
+                node = getNodeData(query);
+            }
+
+            if (node.id == 0) {
+                throw SQLite::Exception("can't get file info");
+            }
+
+
             { // load data from the db
                 SQLite::Statement query{m_db, GET_FILE_DATA};
                 query.bind(1, static_cast<int64_t>(id));
 
                 if (query.executeStep()) {
-                    return query.getColumn(0).getString();
+                    return std::make_pair(node, query.getColumn(0).getString());
                 }
             }
 
-            throw SQLite::Exception("can't read a file data");
+            throw SQLite::Exception("can't read file data");
         };
 
         if (result) {
-            auto span = std::span{reinterpret_cast<const Bytef*>(result->data()), result->size()};
-            return decompress(span, 1000);
+            const auto& [node, data] = *result;
+
+            auto        span = std::span{reinterpret_cast<const Bytef*>(data.data()), data.size()};
+            const auto& file = internalCall(node.compression, span, m_load_funcs);
+            if (static_cast<std::size_t>(node.size_raw) != file.size()) {
+                spdlog::error("File size doesn't mach.\nFS - {}, File - {}", node.size_raw, file.size());
+            }
+            return file;
         }
 
         return {};
     }
+
+
+    void registerSaveFunc(const std::string& name, const ConvertFunc& func) { m_save_funcs.try_emplace(name, func); }
+    void registerLoadFunc(const std::string& name, const ConvertFunc& func) { m_load_funcs.try_emplace(name, func); }
+
+    DataOutput callSaveFunc(const std::string& name, DataInput data) { return internalCall(name, data, m_save_funcs); }
+    DataOutput callLoadFunc(const std::string& name, DataInput data) { return internalCall(name, data, m_load_funcs); }
+
 
 private:
-    std::vector<Byte> compress(std::span<const Byte> source) const {
-        uLongf            destination_length = compressBound(source.size());
-        std::vector<Byte> destination(destination_length);
-
-        auto ec = compress2(destination.data(), &destination_length, source.data(), source.size(), Z_BEST_COMPRESSION);
-        if (ec == Z_OK) {
-            destination.resize(destination_length);
-            return destination;
+    static DataOutput internalCall(const std::string& name, DataInput data, const ConvertFuncsMap& map) {
+        auto it = map.find(name);
+        if (it != map.end()) {
+            return it->second(data);
         }
-        spdlog::critical("Can't compress data");
+        spdlog::error("Cannot find {}", name);
         return {};
     }
 
-    std::vector<Byte> decompress(std::span<const Byte> source, uLongf destination_length) const {
-        std::vector<Byte> destination(destination_length);
-
-        int ec = uncompress(destination.data(), &destination_length, source.data(), source.size());
-        if (ec == Z_OK) {
-            destination.resize(destination_length);
-            return destination;
+    static SQLiteFSNode getNodeData(SQLite::Statement& query) {
+        SQLiteFSNode info;
+        if (query.executeStep()) {
+            info.id              = query.getColumn(0).getInt();
+            info.parent_id       = query.getColumn(1).getInt();
+            info.name            = query.getColumn(2).getString();
+            auto attrib          = query.getColumn(3).getInt();
+            info.size            = query.getColumn(4).getInt();
+            info.size_raw        = query.getColumn(5).getInt();
+            info.compression     = query.getColumn(6).getString();
+            info.attributes.file = attrib & (1 << 0);
+            info.attributes.ro   = attrib & (1 << 1);
+        } else {
+            spdlog::error("Cannot get node info");
         }
-        spdlog::critical("Can't uncompress data");
-        return {};
+        return info;
     }
-
 
 private:
     std::string              m_db_path;
     std::int32_t             m_cwd = 0; // 0 - root
     mutable std::mutex       m_mutex;
     mutable SQLite::Database m_db;
+
+    ConvertFuncsMap m_save_funcs;
+    ConvertFuncsMap m_load_funcs;
 };
 
 
-SQLiteFS::SQLiteFS(std::string path) : m_impl(std::make_unique<Impl>(std::move(path))) {}
+SQLiteFS::SQLiteFS(std::string path) : m_impl(std::make_unique<Impl>(std::move(path))) {
+    SQLiteFS::registerSaveFunc("raw", [](DataInput data) { return DataOutput{data.begin(), data.end()}; });
+    SQLiteFS::registerSaveFunc("zlib", zlibCompress);
+
+    SQLiteFS::registerLoadFunc("raw", [](DataInput data) { return DataOutput{data.begin(), data.end()}; });
+    SQLiteFS::registerLoadFunc("zlib", zlibDecompress);
+}
 
 
 std::string SQLiteFS::pwd() const {
@@ -320,16 +279,32 @@ bool SQLiteFS::rm(const std::string& name) {
     return m_impl->rm(name);
 }
 
-bool SQLiteFS::put(const std::string& name, std::span<const Byte> data) {
-    return m_impl->put(name, data);
+bool SQLiteFS::put(const std::string& name, DataInput data, const std::string& alg) {
+    return m_impl->put(name, data, alg);
 }
 
-std::vector<Byte> SQLiteFS::get(const std::string& name) const {
+SQLiteFS::DataOutput SQLiteFS::get(const std::string& name) const {
     return m_impl->get(name);
 }
 
 const std::string& SQLiteFS::path() const noexcept {
     return m_impl->path();
+}
+
+void SQLiteFS::registerSaveFunc(const std::string& name, const ConvertFunc& func) {
+    m_impl->registerSaveFunc(name, func);
+}
+
+void SQLiteFS::registerLoadFunc(const std::string& name, const ConvertFunc& func) {
+    m_impl->registerLoadFunc(name, func);
+}
+
+SQLiteFS::DataOutput SQLiteFS::callSaveFunc(const std::string& name, DataInput data) {
+    return m_impl->callSaveFunc(name, data);
+}
+
+SQLiteFS::DataOutput SQLiteFS::callLoadFunc(const std::string& name, DataInput data) {
+    return m_impl->callLoadFunc(name, data);
 }
 
 SQLiteFS::~SQLiteFS() {} // NOLINT

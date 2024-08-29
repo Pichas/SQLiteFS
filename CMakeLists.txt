@@ -25,19 +25,27 @@ set(HEADERS
     includes/sqlitefs/sqlitefs.h
 )
 
+
+set(HEADERS_PRIVATE
+    sqlitefs/sqlqueries.h
+    sqlitefs/utils.h
+    sqlitefs/compression.h
+)
+
 set(SRC
     sqlitefs/sqlitefs.cpp
 )
 
 set(SOURCE_FILES
     ${HEADERS}
+    ${HEADERS_PRIVATE}
     ${SRC}
 )
 
 if(BUILD_SHARED_LIBS)
-    add_library( ${PROJECT_NAME} SHARED ${SOURCE_FILES})
+    add_library(${PROJECT_NAME} SHARED ${SOURCE_FILES})
 else()
-    add_library( ${PROJECT_NAME} ${SOURCE_FILES})
+    add_library(${PROJECT_NAME} ${SOURCE_FILES})
 endif(BUILD_SHARED_LIBS)
 
 add_library(SQLiteFSLib::SQLiteFSLib ALIAS SQLiteFSLib)
@@ -47,6 +55,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES SOVERSION ${PROJECT_VERSION_MAJ
 set_target_properties(${PROJECT_NAME} PROPERTIES PUBLIC_HEADER ${HEADERS})
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/includes)
+target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/sqlitefs)
 target_link_libraries(${PROJECT_NAME}
     PRIVATE
         spdlog
