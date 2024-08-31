@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(SQLiteFSLib LANGUAGES CXX VERSION 0.1.1 DESCRIPTION "In sqlite file system")
+project(SQLiteFSLib LANGUAGES CXX VERSION 1.0.0 DESCRIPTION "In sqlite file system")
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -18,7 +18,6 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin) # Output directory f
 option(BUILD_SHARED_LIBS "Build shared libraries (DLLs)" OFF)
 
 add_subdirectory(external)
-find_package(ZLIB REQUIRED)
 
 
 set(HEADERS
@@ -29,7 +28,6 @@ set(HEADERS
 set(HEADERS_PRIVATE
     sqlitefs/sqlqueries.h
     sqlitefs/utils.h
-    sqlitefs/compression.h
 )
 
 set(SRC
@@ -48,7 +46,7 @@ else()
     add_library(${PROJECT_NAME} ${SOURCE_FILES})
 endif(BUILD_SHARED_LIBS)
 
-add_library(SQLiteFSLib::SQLiteFSLib ALIAS SQLiteFSLib)
+add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
 set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
 set_target_properties(${PROJECT_NAME} PROPERTIES SOVERSION ${PROJECT_VERSION_MAJOR})
@@ -60,7 +58,6 @@ target_link_libraries(${PROJECT_NAME}
     PRIVATE
         spdlog
         SQLiteCpp sqlite3
-        ZLIB::ZLIB
 )
 
 option(SQLITEFS_BUILD_TESTS "Build tests." ${PROJECT_IS_TOP_LEVEL})

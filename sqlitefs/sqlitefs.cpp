@@ -3,8 +3,6 @@
 #include <SQLiteCpp/SQLiteCpp.h>
 #include <spdlog/spdlog.h>
 #include <spdlog/stopwatch.h>
-#include <zconf.h>
-#include "compression.h"
 #include "sqlqueries.h"
 #include "utils.h"
 
@@ -220,7 +218,7 @@ struct SQLiteFS::Impl {
         if (result) {
             const auto& [node, data] = *result;
 
-            auto        span = std::span{reinterpret_cast<const Bytef*>(data.data()), data.size()};
+            auto        span = std::span{reinterpret_cast<const std::uint8_t*>(data.data()), data.size()};
             const auto& file = internalCall(node.compression, span, m_load_funcs);
             if (static_cast<std::size_t>(node.size_raw) != file.size()) {
                 spdlog::error("File size doesn't mach.\nFS - {}, File - {}", node.size_raw, file.size());
@@ -314,10 +312,8 @@ private:
 
 SQLiteFS::SQLiteFS(std::string path) : m_impl(std::make_unique<Impl>(std::move(path))) {
     SQLiteFS::registerSaveFunc("raw", [](DataInput data) { return DataOutput{data.begin(), data.end()}; });
-    SQLiteFS::registerSaveFunc("zlib", zlibCompress);
 
     SQLiteFS::registerLoadFunc("raw", [](DataInput data) { return DataOutput{data.begin(), data.end()}; });
-    SQLiteFS::registerLoadFunc("zlib", zlibDecompress);
 }
 
 
