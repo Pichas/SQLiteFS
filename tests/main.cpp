@@ -3,7 +3,7 @@
 #include <sqlitefs/sqlitefs.h>
 
 
-class SQLiteFSTestFixture : public testing::Test {
+class FSFixture : public testing::Test {
 protected:
     void SetUp() override { db = std::make_unique<SQLiteFS>(db_path); }
 
@@ -17,12 +17,22 @@ protected:
 };
 
 
-TEST_F(SQLiteFSTestFixture, GetRoot) {
+TEST_F(FSFixture, GetRoot) {
     ASSERT_EQ(db->pwd(), "/");
 }
 
 
-TEST_F(SQLiteFSTestFixture, CreateFolder) {
+TEST_F(FSFixture, GetDeletedFolder) {
+    ASSERT_EQ(db->pwd(), "/");
+    ASSERT_TRUE(db->mkdir("f1"));
+    ASSERT_TRUE(db->cd("f1"));
+    ASSERT_EQ(db->pwd(), "/f1");
+    ASSERT_TRUE(db->rm("/f1"));
+    ASSERT_EQ(db->pwd(), "/");
+}
+
+
+TEST_F(FSFixture, CreateFolder) {
     std::vector<SQLiteFSNode> expected;
 
     ASSERT_EQ(db->pwd(), "/");
@@ -52,10 +62,17 @@ TEST_F(SQLiteFSTestFixture, CreateFolder) {
     ASSERT_EQ(db->ls(), expected2);
     ASSERT_EQ(db->ls("."), expected2);
     ASSERT_EQ(db->ls(".."), expected);
+
+    std::string               data("random test data");
+    std::vector<std::uint8_t> content{data.begin(), data.end()};
+    ASSERT_TRUE(db->put("test.txt", content));
+
+    expected.clear();
+    ASSERT_EQ(db->ls("test.txt"), expected);
 }
 
 
-TEST_F(SQLiteFSTestFixture, CreateRemoveFolder) {
+TEST_F(FSFixture, CreateRemoveFolder) {
     std::vector<SQLiteFSNode> expected;
 
     std::string folder1 = "folder1";
@@ -77,9 +94,11 @@ TEST_F(SQLiteFSTestFixture, CreateRemoveFolder) {
 
     ASSERT_FALSE(db->rm(folder1));
     ASSERT_EQ(db->ls(), expected);
+
+    ASSERT_TRUE(db->rm("/" + folder1));
 }
 
-TEST_F(SQLiteFSTestFixture, ChangeFolder) {
+TEST_F(FSFixture, ChangeFolder) {
     std::vector<std::string> expected;
 
     std::string folder1 = "folder1";
@@ -115,7 +134,7 @@ TEST_F(SQLiteFSTestFixture, ChangeFolder) {
 }
 
 
-TEST_F(SQLiteFSTestFixture, PutFile) {
+TEST_F(FSFixture, PutFile) {
     ASSERT_EQ(db->pwd(), "/");
 
     std::string               data("random test data");
@@ -123,6 +142,8 @@ TEST_F(SQLiteFSTestFixture, PutFile) {
 
     ASSERT_TRUE(db->put("test.txt", content));
     ASSERT_FALSE(db->put("test.txt", content));
+    ASSERT_FALSE(db->put("/f1/test.txt", content));
+    ASSERT_FALSE(db->put("../../../test.txt", content));
 
     auto files = db->ls();
     ASSERT_EQ(files.size(), 1);
@@ -146,7 +167,7 @@ TEST_F(SQLiteFSTestFixture, PutFile) {
 }
 
 
-TEST_F(SQLiteFSTestFixture, PutGetFile) {
+TEST_F(FSFixture, PutGetFile) {
     ASSERT_EQ(db->pwd(), "/");
 
     std::string               data("random test data");
@@ -171,7 +192,7 @@ TEST_F(SQLiteFSTestFixture, PutGetFile) {
     }
 }
 
-TEST_F(SQLiteFSTestFixture, PutGetFileWithModification) {
+TEST_F(FSFixture, PutGetFileWithModification) {
     ASSERT_EQ(db->pwd(), "/");
 
     std::string               data("random test data");
@@ -201,7 +222,7 @@ TEST_F(SQLiteFSTestFixture, PutGetFileWithModification) {
 }
 
 
-TEST_F(SQLiteFSTestFixture, PutGetFileWithCustomConvertFunction) {
+TEST_F(FSFixture, PutGetFileWithCustomConvertFunction) {
     ASSERT_EQ(db->pwd(), "/");
 
     db->registerSaveFunc("reverse",
@@ -223,7 +244,7 @@ TEST_F(SQLiteFSTestFixture, PutGetFileWithCustomConvertFunction) {
 }
 
 
-TEST_F(SQLiteFSTestFixture, PutGetFileWithComplexComplexConvertFunction) {
+TEST_F(FSFixture, PutGetFileWithComplexComplexConvertFunction) {
     ASSERT_EQ(db->pwd(), "/");
 
     db->registerSaveFunc("myComplexFunc", [&](SQLiteFS::DataInput data) {

@@ -6,6 +6,7 @@
 #include "sqlqueries.h"
 #include "utils.h"
 
+#define ROOT 0
 
 struct SQLiteFS::Impl {
     Impl(std::string path) : m_db_path(std::move(path)), m_db(m_db_path, SQLite::OPEN_READWRITE | SQLite::OPEN_CREATE) {
@@ -18,83 +19,75 @@ struct SQLiteFS::Impl {
 
     const std::string& path() const noexcept { return m_db_path; }
 
-    bool mkdir(std::string name) {
-        bool result = false;
+    bool mkdir(const std::string& full_path) {
+        const auto& [path_id, name] = getPathAndName(full_path);
 
-        std::uint32_t node = m_cwd;
-        auto          pos  = name.find_last_of('/');
-        if (pos != std::string::npos) {
-            auto path = name.substr(0, pos);
-            pathResolver(path, node);
-            name = name.substr(pos + 1);
+        if (!path_id) {
+            return false;
         }
 
-        TRY {
+        auto result = TRY {
             std::lock_guard   lock(m_mutex);
             SQLite::Statement query{m_db, MKDIR};
-            query.bind(1, node);
+            query.bind(1, *path_id);
             query.bind(2, name);
-            result = query.exec();
+            return query.exec();
         };
-        return result;
+        return result ? *result : false;
     }
 
 
     bool cd(const std::string& path) {
-        std::uint32_t node = 0;
-        if (pathResolver(path, node)) {
-            m_cwd = node;
+        if (auto node = pathResolver(path); node) {
+            m_cwd = *node;
             return true;
         }
         return false;
     }
 
-    bool rm(std::string name) {
-        bool result = false;
+    bool rm(const std::string& full_path) {
+        const auto& [path_id, name] = getPathAndName(full_path);
 
-        std::uint32_t node = m_cwd;
-        auto          pos  = name.find_last_of('/');
-        if (pos != std::string::npos) {
-            auto path = name.substr(0, pos);
-            pathResolver(path, node);
-            name = name.substr(pos + 1);
+        if (!path_id) {
+            return false;
         }
 
-        TRY {
+        auto result = TRY {
             std::lock_guard   lock(m_mutex);
             SQLite::Statement query{m_db, RM};
-            query.bind(1, node);
+            query.bind(1, *path_id);
             query.bind(2, name);
-            result = query.exec();
+            return query.exec();
         };
-        return result;
+        return result ? *result : false;
     }
 
     std::string pwd() const {
-        std::string result;
-
-        TRY {
+        auto result = TRY {
             std::lock_guard   lock(m_mutex);
             SQLite::Statement query{m_db, PWD};
             query.bind(1, m_cwd);
             if (query.executeStep()) {
-                result = query.getColumn(0).getString();
+                return query.getColumn(0).getString();
             }
+            throw SQLite::Exception("Folder doesn't exist");
         };
 
-        return result;
+        return result ? *result : "Folder doesn't exist";
     }
 
     std::vector<SQLiteFSNode> ls(const std::string& path) const {
+        const auto& [path_id, name] = getPathAndName(path + "/");
         std::vector<SQLiteFSNode> content;
 
-        std::uint32_t node = m_cwd;
-        pathResolver(path, node);
+        if (!path_id) {
+            return content;
+        }
 
         TRY {
             std::lock_guard   lock(m_mutex);
             SQLite::Statement query{m_db, LS};
-            query.bind(1, node);
+            query.bind(1, *path_id);
 
             SQLiteFSNode node;
             while (getNodeData(query, node)) {
@@ -104,57 +97,54 @@ struct SQLiteFS::Impl {
         return content;
     }
 
-    bool put(std::string name, DataInput data, const std::string& alg) {
-        std::uint32_t node = m_cwd;
-        auto          pos  = name.find_last_of('/');
-        if (pos != std::string::npos) {
-            auto path = name.substr(0, pos);
-            pathResolver(path, node);
-            name = name.substr(pos + 1);
+    bool put(const std::string& full_path, DataInput data, const std::string& alg) {
+        const auto& [path_id, name] = getPathAndName(full_path);
+
+        if (!path_id) {
+            return false;
         }
 
         auto result = TRY {
-            auto compressed = internalCall(alg, data, m_save_funcs);
+            auto data_modified = internalCall(alg, data, m_save_funcs);
 
             std::lock_guard     lock(m_mutex);
             SQLite::Transaction transaction(m_db);
 
-            std::int32_t affected = 0;
-
             { // create empty file if doesn't exist
                 SQLite::Statement query{m_db, TOUCH};
-                query.bind(1, node);
+                query.bind(1, *path_id);
                 query.bind(2, name);
-                query.bind(3, static_cast<std::int64_t>(compressed.size())); // doesn't support uint64_t
-                query.bind(4, static_cast<std::int64_t>(data.size()));       // doesn't support uint64_t
+                query.bind(3, static_cast<std::int64_t>(data_modified.size())); // doesn't support uint64_t
+                query.bind(4, static_cast<std::int64_t>(data.size()));          // doesn't support uint64_t
                 query.bind(5, alg);
-                affected = query.exec();
-            }
 
-            if (affected == 0) {
-                throw SQLite::Exception("can't touch a file");
+                if (!query.exec()) {
+                    throw SQLite::Exception("can't touch a file");
+                }
             }
 
             std::uint32_t id = 0;
             { // get file id
                 SQLite::Statement query{m_db, GET_ID};
-                query.bind(1, node);
+                query.bind(1, *path_id);
                 query.bind(2, name);
 
                 if (query.executeStep()) {
                     id = query.getColumn(0).getInt();
+                } else {
+                    throw SQLite::Exception("can't get file id");
                 }
             }
 
-            if (id == 0) {
-                throw SQLite::Exception("can't get file id");
-            }
+            assert(id);
 
             { // save data in the db
                 SQLite::Statement query{m_db, SET_FILE_DATA};
                 query.bind(1, id);
-                query.bind(2, compressed.data(), compressed.size());
-                query.exec();
+                query.bind(2, data_modified.data(), data_modified.size());
+                if (!query.exec()) {
+                    throw SQLite::Exception("can't save file data");
+                }
             }
 
             transaction.commit();
@@ -164,51 +154,39 @@ struct SQLiteFS::Impl {
         return result ? *result : false;
     }
 
-    DataOutput get(std::string name) const {
-        std::uint32_t node = m_cwd;
-        auto          pos  = name.find_last_of('/');
-        if (pos != std::string::npos) {
-            auto path = name.substr(0, pos);
-            pathResolver(path, node);
-            name = name.substr(pos + 1);
+    DataOutput get(const std::string& full_path) const {
+        const auto& [path_id, name] = getPathAndName(full_path);
+
+        if (!path_id) {
+            return {};
         }
 
         auto result = TRY {
             std::lock_guard lock(m_mutex);
 
-            std::uint32_t id = 0;
-            { // get file id
-                SQLite::Statement query{m_db, GET_ID};
-                query.bind(1, node);
-                query.bind(2, name);
-
-                if (query.executeStep()) {
-                    id = query.getColumn(0).getInt();
-                }
+            auto id = getFileId(*path_id, name);
+            if (!id) {
+                throw SQLite::Exception("can't get file id");
             }
 
-            if (id == 0) {
-                throw SQLite::Exception("can't create a file id");
-            }
-
-            SQLiteFSNode node;
+            SQLiteFSNode fs_node;
             { // get file id
                 SQLite::Statement query{m_db, GET_INFO};
-                query.bind(1, id);
-                getNodeData(query, node);
+                query.bind(1, *id);
+                getNodeData(query, fs_node);
             }
 
-            if (node.id == 0) {
+            if (fs_node.id == 0) {
                 throw SQLite::Exception("can't get file info");
             }
 
 
             { // load data from the db
                 SQLite::Statement query{m_db, GET_FILE_DATA};
-                query.bind(1, id);
+                query.bind(1, *id);
 
                 if (query.executeStep()) {
-                    return std::make_pair(node, query.getColumn(0).getString());
+                    return std::make_pair(fs_node, query.getColumn(0).getString());
                 }
             }
 
@@ -262,41 +240,63 @@ private:
         return false;
     }
 
-    bool pathResolver(const std::string& path, std::uint32_t& out) const {
-        bool result = false;
+    std::optional<std::uint32_t> getFileId(std::uint32_t path_id, const std::string& name) const {
+        SQLite::Statement query{m_db, GET_ID};
+        query.bind(1, path_id);
+        query.bind(2, name);
 
+        if (query.executeStep()) {
+            return query.getColumn(0).getInt();
+        }
+        return {};
+    }
+
+
+    std::optional<std::uint32_t> pathResolver(const std::string& path) const {
         if (path.empty()) {
-            return false;
+            return m_cwd;
         }
 
         if (path == "/") {
-            out = 0;
-            return true;
+            return ROOT;
         }
 
-        out = path.starts_with('/') ? 0 : m_cwd;
-
-        TRY {
+        return TRY {
             std::lock_guard lock(m_mutex);
+            std::uint32_t   id = path.starts_with('/') ? ROOT : m_cwd;
 
             auto names = split(path, '/');
             for (const auto& name : names) {
-                if (name == ".") {
+                if (name == "." || name == "") {
                     continue;
                 }
 
                 SQLite::Statement query{m_db, name == ".." ? GET_PARENT_ID : GET_ID};
-                query.bind(1, out);
+                query.bind(1, id);
                 if (name != "..") {
                     query.bind(2, name);
                 }
+
                 if (query.executeStep()) {
-                    out    = query.getColumn(0).getInt();
-                    result = true;
+                    id = query.getColumn(0).getInt();
+                } else {
+                    throw SQLite::Exception("Path doesn't exist");
                 }
             }
+            return id;
         };
-        return result;
+    }
+
+    std::pair<std::optional<std::uint32_t>, std::string> getPathAndName(const std::string& full_path) const {
+        auto pos = full_path.find_last_of('/');
+
+        if (pos == std::string::npos) {
+            return {m_cwd, full_path};
+        }
+
+        auto path = full_path.substr(0, pos + 1);
+        auto name = full_path.substr(pos + 1);
+        return {pathResolver(path), name};
     }
 
 private:
