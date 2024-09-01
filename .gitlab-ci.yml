@@ -18,7 +18,7 @@ stages:
     - cmake --build --preset clang --config Debug
     - cmake --build --preset clang --config Release
     - mkdir lib
-    - cp build/clang/lib/Release/SQLiteFSLib.* lib
+    - cp build/clang/lib/Release/*SQLiteFS.* lib
     - cp -r includes lib
     - cd build/clang
     - ctest -V -C Debug

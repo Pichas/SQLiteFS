@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(SQLiteFSLib LANGUAGES CXX VERSION 1.1.0 DESCRIPTION "In sqlite file system")
+project(SQLiteFS LANGUAGES CXX VERSION 1.1.0 DESCRIPTION "In sqlite file system")
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
