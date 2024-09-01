@@ -15,12 +15,14 @@ struct SQLiteFSNode final {
     std::int64_t  size     = 0;
     std::int64_t  size_raw = 0;
     std::string   compression;
-    bool          is_file : 1 = false;
+
+    enum Attributes : std::uint32_t { FILE = 1 };
+    Attributes attributes;
 
     auto operator<=>(const SQLiteFSNode&) const noexcept = default;
 };
 
-struct SQLiteFS final {
+struct SQLiteFS {
     using Data            = std::uint8_t;
     using DataInput       = std::span<const Data>;
     using DataOutput      = std::vector<Data>;
@@ -28,7 +30,7 @@ struct SQLiteFS final {
     using ConvertFuncsMap = std::unordered_map<std::string, ConvertFunc>;
 
     SQLiteFS(std::string path);
-    ~SQLiteFS();
+    virtual ~SQLiteFS();
 
     const std::string& path() const noexcept;
 
@@ -37,8 +39,8 @@ struct SQLiteFS final {
     bool                      rm(const std::string& name);
     std::string               pwd() const;
     std::vector<SQLiteFSNode> ls(const std::string& path = ".") const;
-    bool                      put(const std::string& name, DataInput data, const std::string& alg = "raw");
-    DataOutput                get(const std::string& name) const;
+    bool                      write(const std::string& name, DataInput data, const std::string& alg = "raw");
+    DataOutput                read(const std::string& name) const;
     bool                      mv(const std::string& from, const std::string& to);
     bool                      cp(const std::string& from, const std::string& to);
 

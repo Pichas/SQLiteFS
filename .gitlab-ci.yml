@@ -17,16 +17,16 @@ stages:
     - cmake --preset clang
     - cmake --build --preset clang --config Debug
     - cmake --build --preset clang --config Release
-    - mkdir lib
-    - cp build/clang/lib/Release/*SQLiteFS.* lib
-    - cp -r includes lib
+    - cp -r build/clang/lib/Release export
+    - cp -r build/clang/lib/Debug export
+    - cp -r includes export
     - cd build/clang
     - ctest -V -C Debug
     - ctest -V -C Release
   artifacts:
     expire_in: 1 week
     paths:
-      - lib
+      - export
 
 build:windows:
   extends: [.build]
@@ -43,7 +43,7 @@ prepare:
   stage: prepare
   image: registry.gitlab.com/p34ch-main/docker-images/common
   script:
-    - zip -r -9 ${PACKAGENAME} lib
+    - zip -r -9 ${PACKAGENAME} export
     - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file ${PACKAGENAME} "${URL}${PACKAGENAME}"'
   rules:
     - if: $CI_COMMIT_TAG

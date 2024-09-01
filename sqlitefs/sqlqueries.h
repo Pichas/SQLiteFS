@@ -59,9 +59,6 @@ const inline std::string SET_NAME      = R"query(UPDATE fs SET name = ? WHERE id
 const inline std::string COPY_FILE_FS  = R"query(INSERT INTO fs (parent, name, attrib, size, size_raw, compression) SELECT ?, ?, attrib, size, size_raw, compression FROM fs WHERE id is ?;)query";
 const inline std::string COPY_FILE_RAW = R"query(INSERT INTO data (id, data) SELECT ?, data FROM data WHERE id is ?;)query";
 
-
-
-
 const inline std::string TOUCH         = R"query(INSERT INTO fs (parent, name, size, size_raw, compression, attrib) VALUES (?, ?, ?, ?, ?, 1))query";
 const inline std::string SET_FILE_DATA = R"query(INSERT INTO data (id, data) VALUES (?, ?))query";
 const inline std::string GET_FILE_DATA = R"query(SELECT data FROM data WHERE id IS ?)query";

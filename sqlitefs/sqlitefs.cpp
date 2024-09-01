@@ -28,7 +28,6 @@ struct SQLiteFS::Impl {
         return exec(MKDIR, *path_id, name);
     }
 
-
     bool cd(const std::string& path) {
         std::lock_guard lock(m_mutex);
 
@@ -79,7 +78,7 @@ struct SQLiteFS::Impl {
         return content;
     }
 
-    bool put(const std::string& full_path, DataInput data, const std::string& alg) {
+    bool write(const std::string& full_path, DataInput data, const std::string& alg) {
         auto data_modified = internalCall(alg, data, m_save_funcs);
 
         std::lock_guard lock(m_mutex);
@@ -106,7 +105,7 @@ struct SQLiteFS::Impl {
         return false;
     }
 
-    DataOutput get(const std::string& full_path) const {
+    DataOutput read(const std::string& full_path) const {
         std::lock_guard lock(m_mutex);
 
         const auto& [path_id, name] = getPathAndName(full_path);
@@ -158,6 +157,13 @@ struct SQLiteFS::Impl {
             return false;
         }
 
+        auto file_info_query = select(GET_INFO, *t_path_id);
+        auto file            = getNodeData(file_info_query);
+        if (file->attributes == SQLiteFSNode::Attributes::FILE) {
+            spdlog::error("you can only move to another fodler");
+            return false;
+        }
+
         if (!exec(SET_PARENT_ID, *t_path_id, *f_id)) {
             spdlog::error("internal error: can't move file");
             return false;
@@ -186,8 +192,8 @@ struct SQLiteFS::Impl {
 
         auto file_info_query = select(GET_INFO, *f_id);
         auto file            = getNodeData(file_info_query);
-        if (!file->is_file) {
-            spdlog::error("you can copy only files and one by one");
+        if (file->attributes != SQLiteFSNode::Attributes::FILE) {
+            spdlog::error("you can only copy files and one by one");
             return false;
         }
 
@@ -267,15 +273,14 @@ private:
     static std::optional<SQLiteFSNode> getNodeData(SQLite::Statement& query) {
         if (query.executeStep()) {
             SQLiteFSNode out;
-            out.id          = query.getColumn(0).getInt();
-            out.parent_id   = query.getColumn(1).getInt();
+            out.id          = query.getColumn(0).getUInt();
+            out.parent_id   = query.getColumn(1).getUInt();
             out.name        = query.getColumn(2).getString();
-            out.size        = query.getColumn(4).getInt();
-            out.size_raw    = query.getColumn(5).getInt();
+            out.attributes  = static_cast<SQLiteFSNode::Attributes>(query.getColumn(3).getInt());
+            out.size        = query.getColumn(4).getInt64();
+            out.size_raw    = query.getColumn(5).getInt64();
             out.compression = query.getColumn(6).getString();
 
-            auto attrib = query.getColumn(3).getInt();
-            out.is_file = attrib & (1 << 0);
             return out;
         }
         return {};
@@ -375,12 +380,12 @@ bool SQLiteFS::rm(const std::string& name) {
     return m_impl->rm(name);
 }
 
-bool SQLiteFS::put(const std::string& name, DataInput data, const std::string& alg) {
-    return m_impl->put(name, data, alg);
+bool SQLiteFS::write(const std::string& name, DataInput data, const std::string& alg) {
+    return m_impl->write(name, data, alg);
 }
 
-SQLiteFS::DataOutput SQLiteFS::get(const std::string& name) const {
-    return m_impl->get(name);
+SQLiteFS::DataOutput SQLiteFS::read(const std::string& name) const {
+    return m_impl->read(name);
 }
 
 bool SQLiteFS::mv(const std::string& from, const std::string& to) {

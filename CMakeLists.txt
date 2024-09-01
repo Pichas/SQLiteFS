@@ -24,7 +24,6 @@ set(HEADERS
     includes/sqlitefs/sqlitefs.h
 )
 
-
 set(HEADERS_PRIVATE
     sqlitefs/sqlqueries.h
     sqlitefs/utils.h

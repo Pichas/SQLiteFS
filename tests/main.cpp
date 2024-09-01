@@ -65,7 +65,7 @@ TEST_F(FSFixture, CreateFolder) {
 
     std::string               data("random test data");
     std::vector<std::uint8_t> content{data.begin(), data.end()};
-    ASSERT_TRUE(db->put("test.txt", content));
+    ASSERT_TRUE(db->write("test.txt", content));
 
     expected.clear();
     ASSERT_EQ(db->ls("test.txt"), expected);
@@ -141,10 +141,10 @@ TEST_F(FSFixture, PutFile) {
     std::string               data("random test data");
     std::vector<std::uint8_t> content{data.begin(), data.end()};
 
-    ASSERT_TRUE(db->put("test.txt", content));
-    ASSERT_FALSE(db->put("test.txt", content));
-    ASSERT_FALSE(db->put("/f1/test.txt", content));
-    ASSERT_FALSE(db->put("../../../test.txt", content));
+    ASSERT_TRUE(db->write("test.txt", content));
+    ASSERT_FALSE(db->write("test.txt", content));
+    ASSERT_FALSE(db->write("/f1/test.txt", content));
+    ASSERT_FALSE(db->write("../../../test.txt", content));
 
     auto files = db->ls();
     ASSERT_EQ(files.size(), 1);
@@ -153,18 +153,17 @@ TEST_F(FSFixture, PutFile) {
     ASSERT_EQ(files[0].name, "test.txt");
     ASSERT_GT(files[0].size, 0);
     ASSERT_GT(files[0].size_raw, 0);
-    ASSERT_TRUE(files[0].is_file);
-
+    ASSERT_EQ(files[0].attributes, SQLiteFSNode::Attributes::FILE);
 
     db->mkdir("f1");
     db->mkdir("f1/f2");
 
-    ASSERT_TRUE(db->put("f1/f2/test.txt", content));
-    ASSERT_FALSE(db->put("f1/f2/test.txt", content));
+    ASSERT_TRUE(db->write("f1/f2/test.txt", content));
+    ASSERT_FALSE(db->write("f1/f2/test.txt", content));
 
     db->cd("f1");
-    ASSERT_TRUE(db->put("/f1/f2/test2.txt", content));
-    ASSERT_TRUE(db->put("../test2.txt", content));
+    ASSERT_TRUE(db->write("/f1/f2/test2.txt", content));
+    ASSERT_TRUE(db->write("../test2.txt", content));
 }
 
 
@@ -174,8 +173,8 @@ TEST_F(FSFixture, PutGetFile) {
     std::string               data("random test data");
     std::vector<std::uint8_t> content{data.begin(), data.end()};
     {
-        ASSERT_TRUE(db->put("test2.txt", content, "raw"));
-        auto read_data = db->get("test2.txt");
+        ASSERT_TRUE(db->write("test2.txt", content, "raw"));
+        auto read_data = db->read("test2.txt");
 
         ASSERT_EQ(read_data.size(), content.size());
         ASSERT_EQ(read_data, content);
@@ -185,8 +184,8 @@ TEST_F(FSFixture, PutGetFile) {
         db->mkdir("f1");
         db->mkdir("f1/f2");
 
-        ASSERT_TRUE(db->put("f1/f2/test.txt", content));
-        auto read_data = db->get("f1/f2/test.txt");
+        ASSERT_TRUE(db->write("f1/f2/test.txt", content));
+        auto read_data = db->read("f1/f2/test.txt");
 
         ASSERT_EQ(read_data.size(), content.size());
         ASSERT_EQ(read_data, content);
@@ -201,8 +200,8 @@ TEST_F(FSFixture, PutGetFileWithModification) {
     std::vector<std::uint8_t> content{data.begin(), data.end()};
 
     {
-        ASSERT_TRUE(db->put("test.txt", content));
-        auto read_data = db->get("test.txt");
+        ASSERT_TRUE(db->write("test.txt", content));
+        auto read_data = db->read("test.txt");
 
         ASSERT_EQ(read_data.size(), content.size());
         ASSERT_EQ(read_data, content);
@@ -215,8 +214,8 @@ TEST_F(FSFixture, PutGetFileWithModification) {
         db->registerLoadFunc("reverse",
                              [](SQLiteFS::DataInput data) { return SQLiteFS::DataOutput{data.rbegin(), data.rend()}; });
 
-        ASSERT_TRUE(db->put("test2.txt", content, "reverse"));
-        auto read_data = db->get("test2.txt");
+        ASSERT_TRUE(db->write("test2.txt", content, "reverse"));
+        auto read_data = db->read("test2.txt");
 
         ASSERT_EQ(read_data.size(), content.size());
         ASSERT_EQ(read_data, content);
@@ -237,8 +236,8 @@ TEST_F(FSFixture, PutGetFileWithCustomConvertFunction) {
     std::vector<std::uint8_t> content{data.begin(), data.end()};
 
     {
-        ASSERT_TRUE(db->put("test.txt", content, "reverse"));
-        auto read_data = db->get("test.txt");
+        ASSERT_TRUE(db->write("test.txt", content, "reverse"));
+        auto read_data = db->read("test.txt");
 
         ASSERT_EQ(read_data.size(), content.size());
         ASSERT_EQ(read_data, content);
@@ -262,8 +261,8 @@ TEST_F(FSFixture, PutGetFileWithComplexComplexConvertFunction) {
     std::vector<std::uint8_t> content{data.begin(), data.end()};
 
     {
-        ASSERT_TRUE(db->put("test.txt", content, "myComplexFunc"));
-        auto read_data = db->get("test.txt");
+        ASSERT_TRUE(db->write("test.txt", content, "myComplexFunc"));
+        auto read_data = db->read("test.txt");
 
         ASSERT_EQ(read_data.size(), content.size());
         ASSERT_EQ(read_data, content);
@@ -279,30 +278,32 @@ TEST_F(FSFixture, MoveFileOrFolder) {
 
     std::string               data("random test data");
     std::vector<std::uint8_t> content{data.begin(), data.end()};
-    ASSERT_TRUE(db->put("/f1/test.txt", content));
+    ASSERT_TRUE(db->write("/f1/test.txt", content));
 
     {
-        auto read_data = db->get("/f1/test.txt");
+        auto read_data = db->read("/f1/test.txt");
         ASSERT_EQ(read_data.size(), content.size());
         ASSERT_EQ(read_data, content);
     }
 
     {
-        auto read_data = db->get("/f2/test2.txt");
+        auto read_data = db->read("/f2/test2.txt");
         ASSERT_EQ(read_data.size(), 0);
     }
 
+    ASSERT_TRUE(db->cp("/f1/test.txt", "/f1/test2.txt"));
+    ASSERT_FALSE(db->mv("/f1/test.txt", "/f1/test2.txt"));
     ASSERT_FALSE(db->mv("/f1/test.txt", "/f3/test2.txt"));
     ASSERT_TRUE(db->mv("/f1/test.txt", "/f2/test2.txt"));
     ASSERT_FALSE(db->mv("/f1/test.txt", "/f2/test2.txt"));
 
     {
-        auto read_data = db->get("/f1/test.txt");
+        auto read_data = db->read("/f1/test.txt");
         ASSERT_EQ(read_data.size(), 0);
     }
 
     {
-        auto read_data = db->get("/f2/test2.txt");
+        auto read_data = db->read("/f2/test2.txt");
         ASSERT_EQ(read_data.size(), content.size());
         ASSERT_EQ(read_data, content);
     }
@@ -311,7 +312,7 @@ TEST_F(FSFixture, MoveFileOrFolder) {
     ASSERT_TRUE(db->mv("/f2", "/f1/f3"));
 
     {
-        auto read_data = db->get("/f1/f3/test2.txt");
+        auto read_data = db->read("/f1/f3/test2.txt");
         ASSERT_EQ(read_data.size(), content.size());
         ASSERT_EQ(read_data, content);
     }
@@ -326,16 +327,16 @@ TEST_F(FSFixture, CopyFile) {
 
     std::string               data("random test data");
     std::vector<std::uint8_t> content{data.begin(), data.end()};
-    ASSERT_TRUE(db->put("/f1/test.txt", content));
+    ASSERT_TRUE(db->write("/f1/test.txt", content));
 
     {
-        auto read_data = db->get("/f1/test.txt");
+        auto read_data = db->read("/f1/test.txt");
         ASSERT_EQ(read_data.size(), content.size());
         ASSERT_EQ(read_data, content);
     }
 
     {
-        auto read_data = db->get("/f2/test2.txt");
+        auto read_data = db->read("/f2/test2.txt");
         ASSERT_EQ(read_data.size(), 0);
     }
 
@@ -346,14 +347,13 @@ TEST_F(FSFixture, CopyFile) {
     ASSERT_FALSE(db->cp("/f1/test.txt", "/f2/test2.txt"));
 
     {
-        auto read_data = db->get("/f1/test.txt");
+        auto read_data = db->read("/f1/test.txt");
         ASSERT_EQ(read_data.size(), content.size());
         ASSERT_EQ(read_data, content);
     }
 
-
     {
-        auto read_data = db->get("/f2/test2.txt");
+        auto read_data = db->read("/f2/test2.txt");
         ASSERT_EQ(read_data.size(), content.size());
         ASSERT_EQ(read_data, content);
     }
@@ -365,12 +365,13 @@ TEST(Manual, manual) {
     std::filesystem::remove(db_path);
     auto db = std::make_unique<SQLiteFS>(db_path);
 
+
     ASSERT_EQ(db->pwd(), "/");
     ASSERT_TRUE(db->mkdir("f1"));
     ASSERT_TRUE(db->mkdir("f2"));
 
     std::string               data("random test data");
     std::vector<std::uint8_t> content{data.begin(), data.end()};
-    ASSERT_TRUE(db->put("/f1/test.txt", content));
+    ASSERT_TRUE(db->write("/f1/test.txt", content));
     ASSERT_TRUE(db->cp("/f1/test.txt", "/f2/test2.txt"));
 }
