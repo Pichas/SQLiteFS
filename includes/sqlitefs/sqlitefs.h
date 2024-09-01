@@ -39,7 +39,8 @@ struct SQLiteFS final {
     std::vector<SQLiteFSNode> ls(const std::string& path = ".") const;
     bool                      put(const std::string& name, DataInput data, const std::string& alg = "raw");
     DataOutput                get(const std::string& name) const;
-
+    bool                      mv(const std::string& from, const std::string& to);
+    bool                      cp(const std::string& from, const std::string& to);
 
     void registerSaveFunc(const std::string& name, const ConvertFunc& func);
     void registerLoadFunc(const std::string& name, const ConvertFunc& func);

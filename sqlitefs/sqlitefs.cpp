@@ -20,20 +20,20 @@ struct SQLiteFS::Impl {
     const std::string& path() const noexcept { return m_db_path; }
 
     bool mkdir(const std::string& full_path) {
-        const auto& [path_id, name] = getPathAndName(full_path);
+        std::lock_guard lock(m_mutex);
 
+        const auto& [path_id, name] = getPathAndName(full_path);
         if (!path_id) {
             return false;
         }
 
-        std::lock_guard lock(m_mutex);
         return exec(MKDIR, *path_id, name);
-
-        return false;
     }
 
 
     bool cd(const std::string& path) {
+        std::lock_guard lock(m_mutex);
+
         if (auto node = pathResolver(path); node) {
             m_cwd = *node;
             return true;
@@ -42,16 +42,14 @@ struct SQLiteFS::Impl {
     }
 
     bool rm(const std::string& full_path) {
-        const auto& [path_id, name] = getPathAndName(full_path);
+        std::lock_guard lock(m_mutex);
 
+        const auto& [path_id, name] = getPathAndName(full_path);
         if (!path_id) {
             return false;
         }
 
-        std::lock_guard lock(m_mutex);
         return exec(RM, *path_id, name);
-
-        return false;
     }
 
     std::string pwd() const {
@@ -66,14 +64,14 @@ struct SQLiteFS::Impl {
     }
 
     std::vector<SQLiteFSNode> ls(const std::string& path) const {
-        const auto& [path_id, name] = getPathAndName(path + "/");
+        std::lock_guard lock(m_mutex);
+
         std::vector<SQLiteFSNode> content;
 
+        const auto& [path_id, name] = getPathAndName(path + "/");
         if (!path_id) {
             return content;
         }
-
-        std::lock_guard lock(m_mutex);
 
         auto query = select(LS, *path_id);
         while (auto node = getNodeData(query)) {
@@ -84,24 +82,23 @@ struct SQLiteFS::Impl {
     }
 
     bool put(const std::string& full_path, DataInput data, const std::string& alg) {
-        const auto& [path_id, name] = getPathAndName(full_path);
+        auto data_modified = internalCall(alg, data, m_save_funcs);
 
+        std::lock_guard lock(m_mutex);
+
+        const auto& [path_id, name] = getPathAndName(full_path);
         if (!path_id) {
             return false;
         }
 
-        auto data_modified = internalCall(alg, data, m_save_funcs);
-
-        std::lock_guard     lock(m_mutex);
         SQLite::Transaction transaction(m_db);
-
         if (exec(TOUCH,
                  *path_id,
                  name,
                  static_cast<std::int64_t>(data_modified.size()),
                  static_cast<std::int64_t>(data.size()),
                  alg)) {
-            auto id = getFileId(*path_id, name);
+            auto id = getNodeId(*path_id, name);
             if (id && saveBlob(*id, data_modified)) {
                 transaction.commit();
                 return true;
@@ -112,15 +109,14 @@ struct SQLiteFS::Impl {
     }
 
     DataOutput get(const std::string& full_path) const {
-        const auto& [path_id, name] = getPathAndName(full_path);
+        std::lock_guard lock(m_mutex);
 
+        const auto& [path_id, name] = getPathAndName(full_path);
         if (!path_id) {
             return {};
         }
-        std::lock_guard lock(m_mutex);
 
-        auto id = getFileId(*path_id, name);
-
+        auto id = getNodeId(*path_id, name);
         if (!id) {
             return {};
         }
@@ -129,7 +125,6 @@ struct SQLiteFS::Impl {
         if (data_query.executeStep()) {
             auto data = data_query.getColumn(0).getString();
             auto view = std::span{reinterpret_cast<const std::uint8_t*>(data.data()), data.size()};
-
 
             auto file_info_query = select(GET_INFO, *id);
             auto file            = getNodeData(file_info_query);
@@ -145,6 +140,78 @@ struct SQLiteFS::Impl {
             return raw_data;
         }
         return {};
+    }
+
+    bool mv(const std::string& from, const std::string& to) {
+        std::lock_guard lock(m_mutex);
+
+        const auto& [f_path_id, f_name] = getPathAndName(from);
+        if (!f_path_id) {
+            return false;
+        }
+
+        auto f_id = getNodeId(*f_path_id, f_name);
+        if (!f_id) {
+            return false;
+        }
+
+        const auto& [t_path_id, t_name] = getPathAndName(to);
+        if (!t_path_id) {
+            return false;
+        }
+
+        if (!exec(SET_PARENT_ID, *t_path_id, *f_id)) {
+            spdlog::error("internal error: can't move file");
+            return false;
+        }
+
+        if (!exec(SET_NAME, t_name, *f_id)) {
+            spdlog::error("internal error: can't move file");
+            return false;
+        }
+
+        return true;
+    }
+
+    bool cp(const std::string& from, const std::string& to) {
+        std::lock_guard lock(m_mutex);
+
+        const auto& [f_path_id, f_name] = getPathAndName(from);
+        if (!f_path_id) {
+            return false;
+        }
+
+        auto f_id = getNodeId(*f_path_id, f_name);
+        if (!f_id) {
+            return false;
+        }
+
+        auto file_info_query = select(GET_INFO, *f_id);
+        auto file            = getNodeData(file_info_query);
+        if (!file->is_file) {
+            spdlog::error("you can copy only files and one by one");
+            return false;
+        }
+
+        const auto& [t_path_id, t_name] = getPathAndName(to);
+        if (!t_path_id) {
+            return false;
+        }
+
+        if (!exec(COPY_FILE_FS, *t_path_id, t_name, *f_id)) {
+            spdlog::error("internal error: can't copy file");
+            return false;
+        }
+
+        auto t_id = getNodeId(*t_path_id, t_name);
+        assert(t_id && "internal error: can't copy file");
+
+        if (!exec(COPY_FILE_RAW, *t_id, *f_id)) {
+            spdlog::error("internal error: can't copy file");
+            return false;
+        }
+
+        return true;
     }
 
 
@@ -216,7 +283,7 @@ private:
         return {};
     }
 
-    std::optional<std::uint32_t> getFileId(std::uint32_t path_id, const std::string& name) const {
+    std::optional<std::uint32_t> getNodeId(std::uint32_t path_id, const std::string& name) const {
         auto query = select(GET_ID, path_id, name);
 
         if (query.executeStep()) {
@@ -246,13 +313,12 @@ private:
         std::uint32_t id    = path.starts_with('/') ? ROOT : m_cwd;
         auto          names = split(path, '/');
 
-        std::lock_guard lock(m_mutex);
         for (const auto& name : names) {
             if (name == ".") {
                 continue;
             }
 
-            if (auto node_id = name == ".." ? getParentId(id) : getFileId(id, name)) {
+            if (auto node_id = name == ".." ? getParentId(id) : getNodeId(id, name)) {
                 id = *node_id;
                 continue;
             }
@@ -318,6 +384,15 @@ bool SQLiteFS::put(const std::string& name, DataInput data, const std::string& a
 SQLiteFS::DataOutput SQLiteFS::get(const std::string& name) const {
     return m_impl->get(name);
 }
+
+bool SQLiteFS::mv(const std::string& from, const std::string& to) {
+    return m_impl->mv(from, to);
+}
+
+bool SQLiteFS::cp(const std::string& from, const std::string& to) {
+    return m_impl->cp(from, to);
+}
+
 
 const std::string& SQLiteFS::path() const noexcept {
     return m_impl->path();

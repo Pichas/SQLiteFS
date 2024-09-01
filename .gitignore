@@ -3,4 +3,5 @@ build
 .PVS-studio
 .vs
 *.db
+*.db-journal
 Testing
