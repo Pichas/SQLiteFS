@@ -17,8 +17,6 @@ struct SQLiteFS::Impl {
         transaction.commit();
     }
 
-    const std::string& path() const noexcept { return m_db_path; }
-
     bool mkdir(const std::string& full_path) {
         std::lock_guard lock(m_mutex);
 
@@ -214,6 +212,7 @@ struct SQLiteFS::Impl {
         return true;
     }
 
+    const std::string& path() const noexcept { return m_db_path; }
 
     void registerSaveFunc(const std::string& name, const ConvertFunc& func) { m_save_funcs.try_emplace(name, func); }
     void registerLoadFunc(const std::string& name, const ConvertFunc& func) { m_load_funcs.try_emplace(name, func); }
@@ -231,7 +230,6 @@ private:
         spdlog::error("Cannot find {}", name);
         return {};
     }
-
 
     template<typename... Args>
     int exec(const std::string& query_string, Args&&... args) {
