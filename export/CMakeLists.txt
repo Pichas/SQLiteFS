@@ -17,12 +17,20 @@ if(WIN32)
         debug ${CMAKE_CURRENT_SOURCE_DIR}/Debug/sqlite3.lib
         debug ${CMAKE_CURRENT_SOURCE_DIR}/Debug/SQLiteCpp.lib
         debug ${CMAKE_CURRENT_SOURCE_DIR}/Debug/SQLiteFS.lib
+        debug ${CMAKE_CURRENT_SOURCE_DIR}/Debug/bzip2.lib
+        debug ${CMAKE_CURRENT_SOURCE_DIR}/Debug/lzma.lib
+        debug ${CMAKE_CURRENT_SOURCE_DIR}/Debug/minizip.lib
+        debug ${CMAKE_CURRENT_SOURCE_DIR}/Debug/z-ng.lib
 
         optimized ${CMAKE_CURRENT_SOURCE_DIR}/Release/spdlog.lib
         optimized ${CMAKE_CURRENT_SOURCE_DIR}/Release/sqlite3.lib
         optimized ${CMAKE_CURRENT_SOURCE_DIR}/Release/SQLiteCpp.lib
         optimized ${CMAKE_CURRENT_SOURCE_DIR}/Release/SQLiteFS.lib
-    )
+        optimized ${CMAKE_CURRENT_SOURCE_DIR}/Debug/bzip2.lib
+        optimized ${CMAKE_CURRENT_SOURCE_DIR}/Debug/lzma.lib
+        optimized ${CMAKE_CURRENT_SOURCE_DIR}/Debug/minizip.lib
+        optimized ${CMAKE_CURRENT_SOURCE_DIR}/Debug/z-ng.lib
+)
 endif()
 
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/includes)
