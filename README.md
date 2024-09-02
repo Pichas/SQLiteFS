@@ -49,9 +49,9 @@ FetchContent_Declare(
     sqlitefs_external
     DOWNLOAD_EXTRACT_TIMESTAMP true
 
-    URL       https://gitlab.com/api/v4/projects/61159815/packages/generic/sqlitefs/v1.0.1/sqlitefs-v1.0.1.zip
+    URL       https://gitlab.com/api/v4/projects/61159815/packages/generic/sqlitefs/v1.0.0/sqlitefs-v1.0.0.zip
     # or with compression lib
-    # URL       https://gitlab.com/api/v4/projects/61159815/packages/generic/sqlitefs/v1.0.1-minizip/sqlitefs-v1.0.1-minizip.zip
+    # URL       https://gitlab.com/api/v4/projects/61159815/packages/generic/sqlitefs/v1.0.0-minizip/sqlitefs-v1.0.0-minizip.zip
 )
 FetchContent_MakeAvailable(sqlitefs_external)
 ```
@@ -65,10 +65,10 @@ FetchContent_Declare(
     sqlitefs_external
     GIT_REPOSITORY https://gitlab.com/p34ch-main/sqlitefs.git
 
-    GIT_TAG v1.0.1
+    GIT_TAG v1.0.0
     # or with compression lib
-    # GIT_TAG v1.0.1-zlib
-    # GIT_TAG v1.0.1-minizip
+    # GIT_TAG v1.0.0-zlib
+    # GIT_TAG v1.0.0-minizip
 )
 
 FetchContent_MakeAvailable(sqlitefs_external)
