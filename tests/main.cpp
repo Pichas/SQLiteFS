@@ -96,6 +96,7 @@ TEST_F(FSFixture, CreateRemoveFolder) {
     ASSERT_EQ(db->ls(), expected);
 
     ASSERT_TRUE(db->rm("/" + folder1));
+    db->vacuum();
 }
 
 

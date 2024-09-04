@@ -33,6 +33,7 @@ struct SQLiteFS {
     virtual ~SQLiteFS();
 
     const std::string& path() const noexcept;
+    void               vacuum();
 
     bool                      mkdir(const std::string& name);
     bool                      cd(const std::string& name);

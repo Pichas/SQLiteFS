@@ -220,6 +220,7 @@ struct SQLiteFS::Impl {
     }
 
     const std::string& path() const noexcept { return m_db_path; }
+    void               vacuum() { exec("VACUUM"); }
 
     void registerSaveFunc(const std::string& name, const ConvertFunc& func) { m_save_funcs.try_emplace(name, func); }
     void registerLoadFunc(const std::string& name, const ConvertFunc& func) { m_load_funcs.try_emplace(name, func); }
@@ -400,6 +401,10 @@ bool SQLiteFS::cp(const std::string& from, const std::string& to) {
 
 const std::string& SQLiteFS::path() const noexcept {
     return m_impl->path();
+}
+
+void SQLiteFS::vacuum() {
+    m_impl->vacuum();
 }
 
 void SQLiteFS::registerSaveFunc(const std::string& name, const ConvertFunc& func) {
