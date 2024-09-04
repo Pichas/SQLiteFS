@@ -3,8 +3,14 @@
 #include <SQLiteCpp/SQLiteCpp.h>
 #include <spdlog/spdlog.h>
 #include <spdlog/stopwatch.h>
+#include "compression.h"
 #include "sqlqueries.h"
 #include "utils.h"
+
+#include <mz_strm_bzip.h>
+#include <mz_strm_lzma.h>
+#include <mz_strm_zlib.h>
+
 
 #define ROOT 0
 
@@ -359,6 +365,15 @@ private:
 SQLiteFS::SQLiteFS(std::string path) : m_impl(std::make_unique<Impl>(std::move(path))) {
     SQLiteFS::registerSaveFunc("raw", [](DataInput data) { return DataOutput{data.begin(), data.end()}; });
     SQLiteFS::registerLoadFunc("raw", [](DataInput data) { return DataOutput{data.begin(), data.end()}; });
+
+    SQLiteFS::registerSaveFunc("bzip", [](DataInput data) { return minizipCompress(data, mz_stream_bzip_create); });
+    SQLiteFS::registerLoadFunc("bzip", [](DataInput data) { return minizipDecompress(data, mz_stream_bzip_create); });
+
+    SQLiteFS::registerSaveFunc("lzma", [](DataInput data) { return minizipCompress(data, mz_stream_lzma_create); });
+    SQLiteFS::registerLoadFunc("lzma", [](DataInput data) { return minizipDecompress(data, mz_stream_lzma_create); });
+
+    SQLiteFS::registerSaveFunc("zlib", [](DataInput data) { return minizipCompress(data, mz_stream_zlib_create); });
+    SQLiteFS::registerLoadFunc("zlib", [](DataInput data) { return minizipDecompress(data, mz_stream_zlib_create); });
 }
 
 

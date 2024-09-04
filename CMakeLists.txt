@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(SQLiteFS LANGUAGES CXX VERSION 1.0.0 DESCRIPTION "In sqlite file system")
+project(SQLiteFS LANGUAGES CXX VERSION 1.1.0 DESCRIPTION "In sqlite file system")
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -57,6 +57,7 @@ target_link_libraries(${PROJECT_NAME}
     PRIVATE
         spdlog
         SQLiteCpp sqlite3
+        minizip
 )
 
 option(SQLITEFS_BUILD_TESTS "Build tests." ${PROJECT_IS_TOP_LEVEL})
