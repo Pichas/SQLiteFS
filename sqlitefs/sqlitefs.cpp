@@ -10,6 +10,7 @@
 
 struct SQLiteFS::Impl {
     Impl(std::string path) : m_db_path(std::move(path)), m_db(m_db_path, SQLite::OPEN_READWRITE | SQLite::OPEN_CREATE) {
+        m_db.exec("PRAGMA foreign_keys = ON");
         SQLite::Transaction transaction(m_db);
         for (const auto& q : INIT_DB) {
             m_db.exec(q);
