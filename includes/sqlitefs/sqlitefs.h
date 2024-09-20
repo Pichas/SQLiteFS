@@ -34,6 +34,7 @@ struct SQLiteFS {
 
     const std::string& path() const noexcept;
     void               vacuum();
+    std::string        error() const;
 
     bool                      mkdir(const std::string& name);
     bool                      cd(const std::string& name);

@@ -1,3 +1,8 @@
+if (NOT MZ_ENABLE)
+    message(STATUS "external: disabled target 'MINIZIP::minizip'")
+    return()
+endif()
+
 if(TARGET MINIZIP::minizip)
     return()
 endif()
@@ -14,10 +19,6 @@ FetchContent_Declare(
 # Compatibility options
 option(MZ_COMPAT "Enables compatibility layer" ON)
 # Compression library options
-option(MZ_ZLIB "Enables ZLIB compression" ON)
-option(MZ_BZIP2 "Enables BZIP2 compression" ON)
-option(MZ_LZMA "Enables LZMA & XZ compression" ON)
-option(MZ_ZSTD "Enables ZSTD compression" OFF)
 option(MZ_LIBCOMP "Enables Apple compression" OFF)
 option(MZ_FETCH_LIBS "Enables fetching third-party libraries if not found" ${WIN32})
 option(MZ_FORCE_FETCH_LIBS "Enables fetching third-party libraries always" OFF)

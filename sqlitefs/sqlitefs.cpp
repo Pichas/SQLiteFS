@@ -1,18 +1,36 @@
 #include "sqlitefs/sqlitefs.h"
+#include <mutex>
 #include <optional>
 #include <SQLiteCpp/SQLiteCpp.h>
-#include <spdlog/spdlog.h>
-#include <spdlog/stopwatch.h>
-#include "compression.h"
 #include "sqlqueries.h"
 #include "utils.h"
 
+
+#ifdef MZ_ENABLE
+#include "compression.h"
+
+#ifdef HAVE_BZIP
 #include <mz_strm_bzip.h>
+#endif
+
+#ifdef HAVE_LZMA
 #include <mz_strm_lzma.h>
+#endif
+
+#ifdef HAVE_ZLIB
 #include <mz_strm_zlib.h>
+#endif
+
+#ifdef HAVE_ZSTD
+#include <mz_strm_zstd.h>
+#endif
+
+#endif // MZ_ENABLE
 
 
 #define ROOT 0
+
+using namespace std::literals;
 
 struct SQLiteFS::Impl {
     Impl(std::string path) : m_db_path(std::move(path)), m_db(m_db_path, SQLite::OPEN_READWRITE | SQLite::OPEN_CREATE) {
@@ -64,7 +82,7 @@ struct SQLiteFS::Impl {
             return query.getColumn(0).getString();
         }
 
-        return "Folder doesn't exist";
+        return "";
     }
 
     std::vector<SQLiteFSNode> ls(const std::string& path) const {
@@ -133,13 +151,14 @@ struct SQLiteFS::Impl {
             auto file_info_query = select(GET_INFO, *id);
             auto file            = getNodeData(file_info_query);
             if (!file) {
-                spdlog::critical("DB is broken. Can't find file info {}", *id);
+                m_last_error = "DB is broken. Can't find file info "s + std::to_string(*id);
                 return {};
             }
 
             const auto& raw_data = internalCall(file->compression, view, m_load_funcs);
             if (static_cast<std::size_t>(file->size_raw) != raw_data.size()) {
-                spdlog::error("File size doesn't mach.\nFS meta - {}, File - {}", file->size_raw, raw_data.size());
+                m_last_error = "File size doesn't mach.\nFS meta - "s + std::to_string(file->size_raw) + ", File - " +
+                               std::to_string(raw_data.size());
             }
             return raw_data;
         }
@@ -167,17 +186,17 @@ struct SQLiteFS::Impl {
         auto file_info_query = select(GET_INFO, *t_path_id);
         auto file            = getNodeData(file_info_query);
         if (file->attributes == SQLiteFSNode::Attributes::FILE) {
-            spdlog::error("you can only move to another fodler");
+            m_last_error = "you can only move to another folder";
             return false;
         }
 
         if (!exec(SET_PARENT_ID, *t_path_id, *f_id)) {
-            spdlog::error("internal error: can't move file");
+            m_last_error = "internal error: can't move file";
             return false;
         }
 
         if (!exec(SET_NAME, t_name, *f_id)) {
-            spdlog::error("internal error: can't move file");
+            m_last_error = "internal error: can't move file";
             return false;
         }
 
@@ -200,7 +219,7 @@ struct SQLiteFS::Impl {
         auto file_info_query = select(GET_INFO, *f_id);
         auto file            = getNodeData(file_info_query);
         if (file->attributes != SQLiteFSNode::Attributes::FILE) {
-            spdlog::error("you can only copy files and one by one");
+            m_last_error = "you can only copy files and one by one";
             return false;
         }
 
@@ -210,7 +229,7 @@ struct SQLiteFS::Impl {
         }
 
         if (!exec(COPY_FILE_FS, *t_path_id, t_name, *f_id)) {
-            spdlog::error("internal error: can't copy file");
+            m_last_error = "internal error: can't copy file";
             return false;
         }
 
@@ -218,7 +237,7 @@ struct SQLiteFS::Impl {
         assert(t_id && "internal error: can't copy file");
 
         if (!exec(COPY_FILE_RAW, *t_id, *f_id)) {
-            spdlog::error("internal error: can't copy file");
+            m_last_error = "internal error: can't copy file";
             return false;
         }
 
@@ -227,6 +246,11 @@ struct SQLiteFS::Impl {
 
     const std::string& path() const noexcept { return m_db_path; }
     void               vacuum() { exec("VACUUM"); }
+    std::string        error() const {
+        std::string temp = m_last_error;
+        return temp;
+    };
+
 
     void registerSaveFunc(const std::string& name, const ConvertFunc& func) { m_save_funcs.try_emplace(name, func); }
     void registerLoadFunc(const std::string& name, const ConvertFunc& func) { m_load_funcs.try_emplace(name, func); }
@@ -241,7 +265,6 @@ private:
         if (it != map.end()) {
             return it->second(data);
         }
-        spdlog::error("Cannot find {}", name);
         return {};
     }
 
@@ -254,7 +277,7 @@ private:
                 (query.bind(Is + 1, std::forward<Args>(args)), ...);
             }(std::make_index_sequence<sizeof...(Args)>{});
             return query.exec();
-        } catch (std::exception& e) { spdlog::critical("SQL Error: {} ", e.what()); }
+        } catch (std::exception& e) { m_last_error = "SQL Error: "s + e.what(); }
         return 0;
     }
 
@@ -274,7 +297,7 @@ private:
             query.bind(1, id);
             query.bind(2, data.data(), data.size());
             return query.exec();
-        } catch (std::exception& e) { spdlog::critical("SQL Error: {} ", e.what()); }
+        } catch (std::exception& e) { m_last_error = "SQL Error: "s + e.what(); }
         return false;
     }
 
@@ -356,6 +379,7 @@ private:
     std::uint32_t            m_cwd = ROOT;
     mutable std::mutex       m_mutex;
     mutable SQLite::Database m_db;
+    mutable std::string      m_last_error;
 
     ConvertFuncsMap m_save_funcs;
     ConvertFuncsMap m_load_funcs;
@@ -366,14 +390,25 @@ SQLiteFS::SQLiteFS(std::string path) : m_impl(std::make_unique<Impl>(std::move(p
     SQLiteFS::registerSaveFunc("raw", [](DataInput data) { return DataOutput{data.begin(), data.end()}; });
     SQLiteFS::registerLoadFunc("raw", [](DataInput data) { return DataOutput{data.begin(), data.end()}; });
 
+#ifdef HAVE_BZIP
     SQLiteFS::registerSaveFunc("bzip", [](DataInput data) { return minizipCompress(data, mz_stream_bzip_create); });
     SQLiteFS::registerLoadFunc("bzip", [](DataInput data) { return minizipDecompress(data, mz_stream_bzip_create); });
+#endif
 
+#ifdef HAVE_LZMA
     SQLiteFS::registerSaveFunc("lzma", [](DataInput data) { return minizipCompress(data, mz_stream_lzma_create); });
     SQLiteFS::registerLoadFunc("lzma", [](DataInput data) { return minizipDecompress(data, mz_stream_lzma_create); });
+#endif
 
+#ifdef HAVE_ZLIB
     SQLiteFS::registerSaveFunc("zlib", [](DataInput data) { return minizipCompress(data, mz_stream_zlib_create); });
     SQLiteFS::registerLoadFunc("zlib", [](DataInput data) { return minizipDecompress(data, mz_stream_zlib_create); });
+#endif
+
+#ifdef HAVE_ZSTD
+    SQLiteFS::registerSaveFunc("zstd", [](DataInput data) { return minizipCompress(data, mz_stream_zstd_create); });
+    SQLiteFS::registerLoadFunc("zstd", [](DataInput data) { return minizipDecompress(data, mz_stream_zstd_create); });
+#endif
 }
 
 
@@ -420,6 +455,10 @@ const std::string& SQLiteFS::path() const noexcept {
 
 void SQLiteFS::vacuum() {
     m_impl->vacuum();
+}
+
+std::string SQLiteFS::error() const {
+    return m_impl->error();
 }
 
 void SQLiteFS::registerSaveFunc(const std::string& name, const ConvertFunc& func) {
