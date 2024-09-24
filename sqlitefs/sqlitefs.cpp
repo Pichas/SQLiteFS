@@ -32,8 +32,27 @@
 
 using namespace std::literals;
 
+namespace
+{
+struct SecureString final : public std::string {
+    using std::string::basic_string;
+    ~SecureString() { std::memset(data(), 0, size()); };
+};
+} // namespace
+
 struct SQLiteFS::Impl {
-    Impl(std::string path) : m_db_path(std::move(path)), m_db(m_db_path, SQLite::OPEN_READWRITE | SQLite::OPEN_CREATE) {
+    Impl(std::string path, std::string_view key)
+      : m_db_path(std::move(path)), m_db(m_db_path, SQLite::OPEN_READWRITE | SQLite::OPEN_CREATE) {
+
+        if (!key.empty()) {
+            SecureString secure{key};
+            if (SQLite::Database::isUnencrypted(m_db_path)) {
+                m_db.rekey(secure.data());
+            } else {
+                m_db.key(secure.data());
+            }
+        }
+
         m_db.exec("PRAGMA foreign_keys = ON");
         SQLite::Transaction transaction(m_db);
         for (const auto& q : INIT_DB) {
@@ -386,7 +405,7 @@ private:
 };
 
 
-SQLiteFS::SQLiteFS(std::string path) : m_impl(std::make_unique<Impl>(std::move(path))) {
+SQLiteFS::SQLiteFS(std::string path, std::string_view key) : m_impl(std::make_unique<Impl>(std::move(path), key)) {
     SQLiteFS::registerSaveFunc("raw", [](DataInput data) { return DataOutput{data.begin(), data.end()}; });
     SQLiteFS::registerLoadFunc("raw", [](DataInput data) { return DataOutput{data.begin(), data.end()}; });
 

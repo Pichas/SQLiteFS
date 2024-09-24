@@ -23,6 +23,8 @@ option(MZ_BZIP2 "Enables BZIP2 compression" OFF)
 option(MZ_LZMA "Enables LZMA & XZ compression" OFF)
 option(MZ_ZSTD "Enables ZSTD compression" OFF)
 
+set(CODEC_TYPE AES256 CACHE STRING "Set default codec type")
+
 add_subdirectory(external)
 
 
@@ -59,7 +61,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES PUBLIC_HEADER ${HEADERS})
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/includes)
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/sqlitefs)
-target_link_libraries(${PROJECT_NAME} PRIVATE SQLiteCpp sqlite3)
+target_link_libraries(${PROJECT_NAME} PRIVATE SQLiteCpp)
 
 if(MZ_ENABLE)
     target_compile_definitions(${PROJECT_NAME} PRIVATE MZ_ENABLE)

@@ -1,0 +1,35 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index cc50e11..f5ad9e1 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -297,7 +297,7 @@ endif()
+ add_library(${SQLITE3MC_TARGET} ${SQLITE3MC_LINK}
+   ${SQLITE3MC_BASE_SRCS}
+ )
+-target_include_directories(${SQLITE3MC_TARGET} PRIVATE
++target_include_directories(${SQLITE3MC_TARGET} PUBLIC
+   ${SQLITE3MC_INCLUDEDIRS}
+ )
+ target_compile_definitions(${SQLITE3MC_TARGET} PRIVATE
+@@ -353,6 +353,9 @@ INSTALL(TARGETS ${SQLITE3MC_TARGET}
+   PUBLIC_HEADER DESTINATION include/${CMAKE_PROJECT_NAME}
+   RUNTIME DESTINATION bin
+ )
++if (CMAKE_C_COMPILER_ID STREQUAL "Clang")
++  target_compile_options(${SQLITE3MC_TARGET} PRIVATE -msse4.2 -maes)
++endif()
+ 
+ # Shell Executable project
+ if(SQLITE3MC_BUILD_SHELL)
+diff --git a/src/fastpbkdf2.c b/src/fastpbkdf2.c
+index 7ed8e16..3ca937d 100644
+--- a/src/fastpbkdf2.c
++++ b/src/fastpbkdf2.c
+@@ -27,7 +27,6 @@
+ #ifdef _MSC_VER
+ #define restrict
+ #define inline __inline
+-#define _Pragma __pragma
+ #endif
+ 
+ /* --- Common useful things --- */

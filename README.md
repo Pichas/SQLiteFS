@@ -1,6 +1,6 @@
 # SQLiteFS
 
-Simulate a local fs inside a sqlite database.
+Simulate a local fs inside a sqlite database. Uses [SQLite3MultipleCiphers](https://github.com/utelle/SQLite3MultipleCiphers.git) to encrypt the whole database file including headers.
 
 ## Support data modifications
 
@@ -24,7 +24,8 @@ You can set a callback to modify the data before storing the data in the DB, suc
     std::string               data("random test data");
     std::vector<std::uint8_t> content{data.begin(), data.end()};
 
-    SQLiteFS fs("./fs.db");
+    SQLiteFS fs("./fs.db"); // without encryption
+    // SQLiteFS fs("./fs.db", "key"); to use encryption
     fs.mkdir("folder");
     fs.cd("folder");
 
@@ -63,9 +64,13 @@ target_link_libraries(${PROJECT_NAME} sqlitefs)
 Use options to configure project
 
 ```cmake
+# to compress files while writing to the db
 option(MZ_ENABLE "Enables minizip lib" ON)
 option(MZ_ZLIB "Enables ZLIB compression" ON)
 option(MZ_BZIP2 "Enables BZIP2 compression" ON)
 option(MZ_LZMA "Enables LZMA & XZ compression" ON)
 option(MZ_ZSTD "Enables ZSTD compression" ON)
+
+# AES128 AES256 CHACHA20 SQLCIPHER RC4 ASCON128
+set(CODEC_TYPE AES256 CACHE STRING "Set default codec type")
 ```

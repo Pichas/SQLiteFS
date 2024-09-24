@@ -5,7 +5,7 @@
 
 class FSFixture : public testing::Test {
 protected:
-    void SetUp() override { db = std::make_unique<SQLiteFS>(db_path); }
+    void SetUp() override { db = std::make_unique<SQLiteFS>(db_path, "password"); }
 
     void TearDown() override {
         db.reset();

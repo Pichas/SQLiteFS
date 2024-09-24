@@ -29,7 +29,7 @@ struct SQLiteFS {
     using ConvertFunc     = std::function<DataOutput(DataInput)>;
     using ConvertFuncsMap = std::unordered_map<std::string, ConvertFunc>;
 
-    SQLiteFS(std::string path);
+    SQLiteFS(std::string path, std::string_view key = "");
     virtual ~SQLiteFS();
 
     const std::string& path() const noexcept;
