@@ -1,4 +1,5 @@
 #include "sqlitefs/sqlitefs.h"
+#include <cstring>
 #include <mutex>
 #include <optional>
 #include <SQLiteCpp/SQLiteCpp.h>

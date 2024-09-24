@@ -1,11 +1,28 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index af1f251..432c686 100644
+index af1f251..f481df3 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -307,22 +307,22 @@ else (SQLITECPP_INTERNAL_SQLITE)
-             endif()
-         else()
-             # Since we aren't using pkgconf here, find it manually
+@@ -290,39 +290,8 @@ else (SQLITECPP_INTERNAL_SQLITE)
+     # When using the SQLite codec, we need to link against the sqlcipher lib & include <sqlcipher/sqlite3.h>
+     # So this gets the lib & header, and links/includes everything
+     if(SQLITE_HAS_CODEC)
+-        # Make PkgConfig optional since Windows doesn't usually have it installed.
+-        find_package(PkgConfig QUIET)
+-        if(PKG_CONFIG_FOUND)
+-            # IMPORTED_TARGET was added in 3.6.3
+-            if(CMAKE_VERSION VERSION_LESS 3.6.3)
+-                pkg_check_modules(sqlcipher REQUIRED sqlcipher)
+-                # Only used in Database.cpp so PRIVATE to hide from end-user
+-                # Since we can't use IMPORTED_TARGET on this older Cmake version, manually link libs & includes
+-                target_link_libraries(SQLiteCpp PRIVATE ${sqlcipher_LIBRARIES})
+-                target_include_directories(SQLiteCpp PRIVATE ${sqlcipher_INCLUDE_DIRS})
+-            else()
+-                pkg_check_modules(sqlcipher REQUIRED IMPORTED_TARGET sqlcipher)
+-                # Only used in Database.cpp so PRIVATE to hide from end-user
+-                target_link_libraries(SQLiteCpp PRIVATE PkgConfig::sqlcipher)
+-            endif()
+-        else()
+-            # Since we aren't using pkgconf here, find it manually
 -            find_library(sqlcipher_LIBRARY "sqlcipher")
 -            find_path(sqlcipher_INCLUDE_DIR "sqlcipher/sqlite3.h"
 -                PATH_SUFFIXES
@@ -22,31 +39,16 @@ index af1f251..432c686 100644
 -            # Only used in Database.cpp so PRIVATE to hide from end-user
 -            target_include_directories(SQLiteCpp PRIVATE "${sqlcipher_INCLUDE_DIR}/sqlcipher")
 -            target_link_libraries(SQLiteCpp PRIVATE ${sqlcipher_LIBRARY})
-+            # find_library(sqlcipher_LIBRARY "sqlcipher")
-+            # find_path(sqlcipher_INCLUDE_DIR "sqlcipher/sqlite3.h"
-+            #     PATH_SUFFIXES
-+            #         "include"
-+            #         "includes"
-+            # )
-+            # # Hides it from the GUI
-+            # mark_as_advanced(sqlcipher_LIBRARY sqlcipher_INCLUDE_DIR)
-+            # if(NOT sqlcipher_INCLUDE_DIR)
-+            #     message(FATAL_ERROR "${PROJECT_NAME} requires the \"<sqlcipher/sqlite3.h>\" header to use the codec functionality but it wasn't found.")
-+            # elseif(NOT sqlcipher_LIBRARY)
-+            #     message(FATAL_ERROR "${PROJECT_NAME} requires the sqlcipher library to use the codec functionality but it wasn't found.")
-+            # endif()
-+            # # Only used in Database.cpp so PRIVATE to hide from end-user
-+            # target_include_directories(SQLiteCpp PRIVATE "${sqlcipher_INCLUDE_DIR}/sqlcipher")
-+            target_link_libraries(SQLiteCpp PRIVATE sqlite3mc_static)
++        target_link_libraries(SQLiteCpp PRIVATE sqlite3mc_static)
++        if(0)
          endif()
      else()
          find_package (SQLite3 REQUIRED)
-@@ -371,7 +371,7 @@ install(TARGETS SQLiteCpp
+@@ -371,7 +340,6 @@ install(TARGETS SQLiteCpp
      ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
      COMPONENT libraries)
  install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT headers FILES_MATCHING REGEX ".*\\.(hpp|h)$")
 -install(EXPORT ${PROJECT_NAME}Targets DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME})
-+# install(EXPORT ${PROJECT_NAME}Targets DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME})
  install(FILES ${PROJECT_SOURCE_DIR}/package.xml DESTINATION ${CMAKE_INSTALL_DATADIR}/${PROJECT_NAME})
  
  include(CMakePackageConfigHelpers)
