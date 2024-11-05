@@ -2,7 +2,7 @@ if(TARGET SQLiteCpp)
     return()
 endif()
 
-add_subdirectory(sqlitemc)
+add_subdirectory(sqlite3mc)
 
 message(STATUS "external: downloading target 'SQLiteCpp'")
 

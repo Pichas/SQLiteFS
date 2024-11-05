@@ -8,7 +8,7 @@ include(FetchContent)
 FetchContent_Declare(
     sqlitemc_git
     GIT_REPOSITORY https://github.com/utelle/SQLite3MultipleCiphers.git
-    GIT_TAG        v1.8.7
+    GIT_TAG        v1.9.0
     PATCH_COMMAND git apply ${CMAKE_CURRENT_SOURCE_DIR}/fix_cmake_file.cmake.patch
     UPDATE_DISCONNECTED 1
 )

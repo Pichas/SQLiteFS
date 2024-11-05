@@ -53,7 +53,7 @@ index af1f251..f481df3 100644
  
  include(CMakePackageConfigHelpers)
 diff --git a/src/Database.cpp b/src/Database.cpp
-index 320695f..985abca 100644
+index 320695f..9d4f38d 100644
 --- a/src/Database.cpp
 +++ b/src/Database.cpp
 @@ -14,7 +14,7 @@
@@ -65,3 +65,11 @@ index 320695f..985abca 100644
  #include <sqlite3.h>
  #include <fstream>
  #include <string.h>
+@@ -90,6 +90,7 @@ void Database::Deleter::operator()(sqlite3* apSQLite)
+     // Only case of error is SQLITE_BUSY: "database is locked" (some statements are not finalized)
+     // Never throw an exception in a destructor :
+     SQLITECPP_ASSERT(SQLITE_OK == ret, "database is locked");  // See SQLITECPP_ENABLE_ASSERT_HANDLER
++    sqlite3_shutdown();
+ }
+ 
+ // Set a busy handler that sleeps for a specified amount of time when a table is locked.
