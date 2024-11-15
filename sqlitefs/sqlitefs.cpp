@@ -44,7 +44,6 @@ struct SecureString final : public std::string {
 struct SQLiteFS::Impl {
     Impl(std::string path, std::string_view key)
       : m_db_path(std::move(path)), m_db(m_db_path, SQLite::OPEN_READWRITE | SQLite::OPEN_CREATE) {
-
         if (!key.empty()) {
             SecureString secure{key};
             if (SQLite::Database::isUnencrypted(m_db_path)) {
@@ -63,6 +62,8 @@ struct SQLiteFS::Impl {
     }
 
     bool mkdir(const std::string& full_path) {
+        SQLITE_SCOPED_PROFILER;
+
         std::lock_guard lock(m_mutex);
 
         const auto& [path_id, name] = getPathAndName(full_path);
@@ -74,6 +75,8 @@ struct SQLiteFS::Impl {
     }
 
     bool cd(const std::string& path) {
+        SQLITE_SCOPED_PROFILER;
+
         std::lock_guard lock(m_mutex);
 
         if (auto node = pathResolver(path); node) {
@@ -84,6 +87,8 @@ struct SQLiteFS::Impl {
     }
 
     bool rm(const std::string& full_path) {
+        SQLITE_SCOPED_PROFILER;
+
         std::lock_guard lock(m_mutex);
 
         const auto& [path_id, name] = getPathAndName(full_path);
@@ -95,6 +100,8 @@ struct SQLiteFS::Impl {
     }
 
     std::string pwd() const {
+        SQLITE_SCOPED_PROFILER;
+
         std::lock_guard lock(m_mutex);
 
         auto query = select(PWD, m_cwd);
@@ -102,10 +109,12 @@ struct SQLiteFS::Impl {
             return query.getColumn(0).getString();
         }
 
-        return "";
+        return {};
     }
 
     std::vector<SQLiteFSNode> ls(const std::string& path) const {
+        SQLITE_SCOPED_PROFILER;
+
         std::lock_guard lock(m_mutex);
 
         std::vector<SQLiteFSNode> content;
@@ -124,6 +133,8 @@ struct SQLiteFS::Impl {
     }
 
     bool write(const std::string& full_path, DataInput data, const std::string& alg) {
+        SQLITE_SCOPED_PROFILER;
+
         auto data_modified = internalCall(alg, data, m_save_funcs);
 
         std::lock_guard lock(m_mutex);
@@ -146,11 +157,13 @@ struct SQLiteFS::Impl {
                 return true;
             }
         }
-
+        transaction.rollback();
         return false;
     }
 
     DataOutput read(const std::string& full_path) const {
+        SQLITE_SCOPED_PROFILER;
+
         std::lock_guard lock(m_mutex);
 
         const auto& [path_id, name] = getPathAndName(full_path);
@@ -186,6 +199,8 @@ struct SQLiteFS::Impl {
     }
 
     bool mv(const std::string& from, const std::string& to) {
+        SQLITE_SCOPED_PROFILER;
+
         std::lock_guard lock(m_mutex);
 
         const auto& [f_path_id, f_name] = getPathAndName(from);
@@ -224,6 +239,8 @@ struct SQLiteFS::Impl {
     }
 
     bool cp(const std::string& from, const std::string& to) {
+        SQLITE_SCOPED_PROFILER;
+
         std::lock_guard lock(m_mutex);
 
         const auto& [f_path_id, f_name] = getPathAndName(from);
@@ -264,20 +281,38 @@ struct SQLiteFS::Impl {
         return true;
     }
 
-    const std::string& path() const noexcept { return m_db_path; }
-    void               vacuum() { exec("VACUUM"); }
-    std::string        error() const {
-        std::string temp = m_last_error;
+    void vacuum() {
+        SQLITE_SCOPED_PROFILER;
+        exec("VACUUM");
+    }
+
+    std::string error() const {
+        std::string temp;
+        {
+            std::lock_guard lock(m_mutex);
+            std::string     temp = m_last_error;
+        }
         return temp;
     };
 
+    const std::string& path() const noexcept { return m_db_path; }
 
     void registerSaveFunc(const std::string& name, const ConvertFunc& func) { m_save_funcs.try_emplace(name, func); }
     void registerLoadFunc(const std::string& name, const ConvertFunc& func) { m_load_funcs.try_emplace(name, func); }
 
-    DataOutput callSaveFunc(const std::string& name, DataInput data) { return internalCall(name, data, m_save_funcs); }
-    DataOutput callLoadFunc(const std::string& name, DataInput data) { return internalCall(name, data, m_load_funcs); }
+    DataOutput callSaveFunc(const std::string& name, DataInput data) {
+        SQLITE_SCOPED_PROFILER;
+        return internalCall(name, data, m_save_funcs);
+    }
+    DataOutput callLoadFunc(const std::string& name, DataInput data) {
+        SQLITE_SCOPED_PROFILER;
+        return internalCall(name, data, m_load_funcs);
+    }
 
+    void rawCall(const std::function<void(SQLite::Database*)>& callback) {
+        std::lock_guard lock(m_mutex);
+        callback(&m_db);
+    }
 
 private:
     static DataOutput internalCall(const std::string& name, DataInput data, const ConvertFuncsMap& map) {
@@ -290,6 +325,8 @@ private:
 
     template<typename... Args>
     int exec(const std::string& query_string, Args&&... args) {
+        SQLITE_SCOPED_PROFILER;
+
         try {
             SQLite::Statement query{m_db, query_string};
 
@@ -303,6 +340,8 @@ private:
 
     template<typename... Args>
     SQLite::Statement select(const std::string& query_string, Args&&... args) const {
+        SQLITE_SCOPED_PROFILER;
+
         SQLite::Statement query{m_db, query_string};
 
         [&]<size_t... Is>(std::index_sequence<Is...>) {
@@ -312,6 +351,8 @@ private:
     }
 
     bool saveBlob(std::uint32_t id, DataInput data) {
+        SQLITE_SCOPED_PROFILER;
+
         try {
             SQLite::Statement query{m_db, SET_FILE_DATA};
             query.bind(1, id);
@@ -322,6 +363,8 @@ private:
     }
 
     static std::optional<SQLiteFSNode> getNodeData(SQLite::Statement& query) {
+        SQLITE_SCOPED_PROFILER;
+
         if (query.executeStep()) {
             SQLiteFSNode out;
             out.id          = query.getColumn(0).getUInt();
@@ -334,28 +377,34 @@ private:
 
             return out;
         }
-        return {};
+        return std::nullopt;
     }
 
     std::optional<std::uint32_t> getNodeId(std::uint32_t path_id, const std::string& name) const {
+        SQLITE_SCOPED_PROFILER;
+
         auto query = select(GET_ID, path_id, name);
 
         if (query.executeStep()) {
             return query.getColumn(0).getInt();
         }
-        return {};
+        return std::nullopt;
     }
 
     std::optional<std::uint32_t> getParentId(std::uint32_t path_id) const {
+        SQLITE_SCOPED_PROFILER;
+
         auto query = select(GET_PARENT_ID, path_id);
 
         if (query.executeStep()) {
             return query.getColumn(0).getInt();
         }
-        return {};
+        return std::nullopt;
     }
 
     std::optional<std::uint32_t> pathResolver(const std::string& path) const {
+        SQLITE_SCOPED_PROFILER;
+
         if (path.empty()) {
             return m_cwd;
         }
@@ -377,12 +426,14 @@ private:
                 continue;
             }
 
-            return {};
+            return std::nullopt;
         }
         return id;
     }
 
     std::pair<std::optional<std::uint32_t>, std::string> getPathAndName(const std::string& full_path) const {
+        SQLITE_SCOPED_PROFILER;
+
         auto pos = full_path.find_last_of('/');
 
         if (pos == std::string::npos) {
@@ -395,11 +446,12 @@ private:
     }
 
 private:
-    std::string              m_db_path;
-    std::uint32_t            m_cwd = ROOT;
-    mutable std::mutex       m_mutex;
-    mutable SQLite::Database m_db;
-    mutable std::string      m_last_error;
+    std::string         m_db_path;
+    std::uint32_t       m_cwd = ROOT;
+    SQLite::Database    m_db;
+    mutable std::string m_last_error;
+    SQLITE_LOCABLE_PROFILER(std::mutex, m_mutex);
+    SQLITEFS_NO_PROFILER(mutable std::mutex m_mutex);
 
     ConvertFuncsMap m_save_funcs;
     ConvertFuncsMap m_load_funcs;
@@ -468,7 +520,6 @@ bool SQLiteFS::cp(const std::string& from, const std::string& to) {
     return m_impl->cp(from, to);
 }
 
-
 const std::string& SQLiteFS::path() const noexcept {
     return m_impl->path();
 }
@@ -495,6 +546,10 @@ SQLiteFS::DataOutput SQLiteFS::callSaveFunc(const std::string& name, DataInput d
 
 SQLiteFS::DataOutput SQLiteFS::callLoadFunc(const std::string& name, DataInput data) {
     return m_impl->callLoadFunc(name, data);
+}
+
+void SQLiteFS::rawCall(const std::function<void(SQLite::Database*)>& callback) {
+    m_impl->rawCall(callback);
 }
 
 SQLiteFS::~SQLiteFS() {} // NOLINT

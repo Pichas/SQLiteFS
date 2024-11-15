@@ -7,6 +7,10 @@
 #include <unordered_map>
 #include <vector>
 
+namespace SQLite // NOLINT
+{
+class Database; // forward decl for raw call
+} // namespace SQLite
 
 struct SQLiteFSNode final {
     std::uint32_t id        = 0;
@@ -51,6 +55,9 @@ struct SQLiteFS {
 
     DataOutput callSaveFunc(const std::string& name, DataInput data);
     DataOutput callLoadFunc(const std::string& name, DataInput data);
+
+protected:
+    void rawCall(const std::function<void(SQLite::Database*)>& callback);
 
 private:
     struct Impl;

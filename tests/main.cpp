@@ -1,6 +1,7 @@
 #include <filesystem>
 #include <gtest/gtest.h>
 #include <sqlitefs/sqlitefs.h>
+#include <thread>
 
 
 class FSFixture : public testing::Test {
@@ -12,7 +13,7 @@ protected:
         std::filesystem::remove(db_path);
     }
 
-    std::string               db_path = "./test_db.db";
+    std::string               db_path = "db.db";
     std::unique_ptr<SQLiteFS> db;
 };
 
@@ -357,6 +358,54 @@ TEST_F(FSFixture, CopyFile) {
         auto read_data = db->read("/f2/test2.txt");
         ASSERT_EQ(read_data.size(), content.size());
         ASSERT_EQ(read_data, content);
+    }
+}
+
+
+TEST_F(FSFixture, CopyFileMT) {
+    // GTEST_SKIP() << "Skipping single test";
+    ASSERT_EQ(db->pwd(), "/");
+    ASSERT_TRUE(db->mkdir("f1"));
+    ASSERT_TRUE(db->mkdir("f2"));
+
+    std::string               data("random test data");
+    std::vector<std::uint8_t> content{data.begin(), data.end()};
+    ASSERT_TRUE(db->write("/f1/test.txt", content));
+
+    auto f = [&](int id) {
+        for (int i = 0; i < 10; i++) {
+            {
+                auto read_data = db->read("/f1/test.txt");
+                ASSERT_EQ(read_data.size(), content.size());
+                ASSERT_EQ(read_data, content);
+            }
+
+            {
+                auto read_data = db->read("/f2/test.txt" + std::to_string(i + id));
+                ASSERT_EQ(read_data.size(), 0);
+            }
+
+            ASSERT_TRUE(db->cp("/f1/test.txt", "/f2/test.txt" + std::to_string(i + id)));
+
+            {
+                auto read_data = db->read("/f1/test.txt");
+                ASSERT_EQ(read_data.size(), content.size());
+                ASSERT_EQ(read_data, content);
+            }
+
+            {
+                auto read_data = db->read("/f2/test.txt" + std::to_string(i + id));
+                ASSERT_EQ(read_data.size(), content.size());
+                ASSERT_EQ(read_data, content);
+            }
+        }
+    };
+
+    std::vector<std::jthread> threads;
+    threads.reserve(20);
+
+    for (int i = 0; i < 20; i++) {
+        threads.emplace_back(f, i * 10000);
     }
 }
 

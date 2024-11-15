@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(sqlitefs LANGUAGES CXX VERSION 1.0.1 DESCRIPTION "In sqlite file system")
+project(sqlitefs LANGUAGES CXX VERSION 1.1.0 DESCRIPTION "In sqlite file system")
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -23,7 +23,38 @@ option(MZ_BZIP2 "Enables BZIP2 compression" OFF)
 option(MZ_LZMA "Enables LZMA & XZ compression" OFF)
 option(MZ_ZSTD "Enables ZSTD compression" OFF)
 
+option(SQLITEFS_BUILD_TESTS "Build tests." ${PROJECT_IS_TOP_LEVEL})
+option(SQLITEFS_ENABLE_PROFILER "Enable Tracy profiler library" OFF)
+option(SQLITEFS_BUILD_PROFILER_SERVER "Build Tracy profiler exe. Can be built with CL only" OFF)
+option(SQLITEFS_OVERRIDE_GLOBAL_ALLOCATORS "Override global allocators to track memory in Tracy profiler" OFF)
+
+option(TRACY_ENABLE "Enable profiling" ON)
+option(TRACY_STATIC "Whether to build Tracy as a static library" ON)
+option(TRACY_NO_EXIT "Client executable does not exit until all profile data is sent to server" OFF)
+
 set(CODEC_TYPE AES256 CACHE STRING "Set default codec type")
+
+
+if(BUILD_SHARED_LIBS)
+    add_library(${PROJECT_NAME} SHARED)
+else()
+    add_library(${PROJECT_NAME})
+endif(BUILD_SHARED_LIBS)
+
+add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
+
+
+if(SQLITEFS_ENABLE_PROFILER)
+    target_compile_definitions(${PROJECT_NAME} PUBLIC SQLITEFS_PROFILER_ENABLED)
+    target_link_libraries(${PROJECT_NAME} PUBLIC TracyClient)
+
+    option(TRACY_BUILD_PROFILER "Build tracy profiler exe" ${SQLITEFS_BUILD_PROFILER_SERVER})
+
+    if(SQLITEFS_OVERRIDE_GLOBAL_ALLOCATORS)
+        target_compile_definitions(${PROJECT_NAME} PUBLIC SQLITEFS_ALLOCATORS_ENABLED)
+    endif()
+endif()
+
 
 add_subdirectory(external)
 
@@ -35,10 +66,12 @@ set(HEADERS
 set(HEADERS_PRIVATE
     sqlitefs/sqlqueries.h
     sqlitefs/utils.h
+    sqlitefs/compression.h
 )
 
 set(SRC
     sqlitefs/sqlitefs.cpp
+    sqlitefs/profiler/profiler.cpp
 )
 
 set(SOURCE_FILES
@@ -47,20 +80,13 @@ set(SOURCE_FILES
     ${SRC}
 )
 
-if(BUILD_SHARED_LIBS)
-    add_library(${PROJECT_NAME} SHARED ${SOURCE_FILES})
-else()
-    add_library(${PROJECT_NAME} ${SOURCE_FILES})
-endif(BUILD_SHARED_LIBS)
-
-add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
-
+target_sources(${PROJECT_NAME} PRIVATE ${SOURCE_FILES})
 set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
 set_target_properties(${PROJECT_NAME} PROPERTIES SOVERSION ${PROJECT_VERSION_MAJOR})
 set_target_properties(${PROJECT_NAME} PROPERTIES PUBLIC_HEADER ${HEADERS})
-target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/includes)
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/sqlitefs)
+target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
 target_link_libraries(${PROJECT_NAME} PRIVATE SQLiteCpp)
 
 if(MZ_ENABLE)
@@ -84,7 +110,6 @@ if(MZ_ENABLE)
     endif()
 endif()
 
-option(SQLITEFS_BUILD_TESTS "Build tests." ${PROJECT_IS_TOP_LEVEL})
 if (SQLITEFS_BUILD_TESTS)
     message("SQLiteFS tests are enabled")
     include(CTest)

@@ -6,7 +6,7 @@
             "hidden": true,
             "description": "Base configuration",
             "generator": "Ninja Multi-Config",
-            "binaryDir": "${sourceDir}/build/${presetName}"
+            "binaryDir": "${sourceDir}/build"
         },
         {
             "name": "clang",
@@ -32,16 +32,22 @@
     "buildPresets": [
         {
             "name": "clang",
-            "configurePreset": "clang"
+            "configurePreset": "clang",
+            "configuration": "Debug"
         },
         {
             "name": "clang-release",
             "configurePreset": "clang",
-            "configuration": "Release"
+            "configuration": "RelWithDebInfo"
         },
         {
             "name": "cl",
             "configurePreset": "cl"
+        },
+        {
+            "name": "cl-release",
+            "configurePreset": "cl",
+            "configuration": "RelWithDebInfo"
         }
     ]
 }

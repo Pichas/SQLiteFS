@@ -15,7 +15,7 @@ stages:
     - cmake --preset clang
     - cmake --build --preset clang --config Debug
     - cmake --build --preset clang --config Release
-    - cd build/clang
+    - cd build
     - ctest -V -C Debug
     - ctest -V -C Release
 
