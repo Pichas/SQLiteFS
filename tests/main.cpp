@@ -369,7 +369,7 @@ TEST_F(FSFixture, CopyFileMT) {
     ASSERT_TRUE(db->write("/f1/test.txt", content));
 
     auto f = [&](int id) {
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 50; i++) {
             {
                 auto read_data = db->read("/f1/test.txt");
                 ASSERT_EQ(read_data.size(), content.size());
