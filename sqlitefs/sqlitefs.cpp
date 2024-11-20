@@ -272,6 +272,9 @@ struct SQLiteFS::Impl {
 
         auto t_id = getNodeId(*t_path_id, t_name);
         assert(t_id && "internal error: can't copy file");
+        if (!t_id) {
+            return false;
+        }
 
         if (!exec(COPY_FILE_RAW, *t_id, *f_id)) {
             m_last_error = "internal error: can't copy file";
@@ -290,7 +293,7 @@ struct SQLiteFS::Impl {
         std::string temp;
         {
             std::lock_guard lock(m_mutex);
-            std::string     temp = m_last_error;
+            temp = m_last_error;
         }
         return temp;
     };

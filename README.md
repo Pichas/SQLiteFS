@@ -74,3 +74,7 @@ option(MZ_ZSTD "Enables ZSTD compression" ON)
 # AES128 AES256 CHACHA20 SQLCIPHER RC4 ASCON128
 set(CODEC_TYPE AES256 CACHE STRING "Set default codec type")
 ```
+
+## SAST Tools
+
+[PVS-Studio](https://pvs-studio.com/en/pvs-studio/?utm_source=website&utm_medium=github&utm_campaign=open_source) - static analyzer for C, C++, C#, and Java code.

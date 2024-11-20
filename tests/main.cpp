@@ -1,3 +1,4 @@
+#include <array>
 #include <filesystem>
 #include <gtest/gtest.h>
 #include <sqlitefs/sqlitefs.h>
@@ -102,11 +103,6 @@ TEST_F(FSFixture, CreateRemoveFolder) {
 
 
 TEST_F(FSFixture, ChangeFolder) {
-    std::vector<std::string> expected;
-
-    std::string folder1 = "folder1";
-    expected.push_back(folder1);
-
     ASSERT_EQ(db->pwd(), "/");
     ASSERT_TRUE(db->mkdir("f1"));
     ASSERT_TRUE(db->mkdir("f2"));
@@ -163,7 +159,7 @@ TEST_F(FSFixture, PutFile) {
     ASSERT_TRUE(db->write("f1/f2/test.txt", content));
     ASSERT_FALSE(db->write("f1/f2/test.txt", content));
 
-    db->cd("f1");
+    ASSERT_TRUE(db->cd("f1"));
     ASSERT_TRUE(db->write("/f1/f2/test2.txt", content));
     ASSERT_TRUE(db->write("../test2.txt", content));
 }
