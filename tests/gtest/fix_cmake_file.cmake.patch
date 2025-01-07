@@ -1,0 +1,10 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 40ff758..06e9b24 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -347,5 +347,4 @@ if (BENCHMARK_ENABLE_TESTING)
+       add_library(gmock_main ALIAS GTest::gmock_main)
+     endif()
+   endif()
+-  add_subdirectory(test)
+ endif()

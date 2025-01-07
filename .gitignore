@@ -1,6 +1,6 @@
 build
 .cache
-.PVS-studio
+*.PVS-studio*
 .vs
 *.db
 *.db-journal
