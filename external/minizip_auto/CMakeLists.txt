@@ -1,24 +1,10 @@
-if (NOT MZ_ENABLE)
-    message(STATUS "external: disabled target 'MINIZIP::minizip'")
-    return()
-endif()
-
-if(TARGET MINIZIP::minizip)
-    return()
-endif()
-
-message(STATUS "external: downloading target 'MINIZIP::minizip'")
-
-include(FetchContent)
-FetchContent_Declare(
-    minizip_git
-    GIT_REPOSITORY https://github.com/zlib-ng/minizip-ng.git
-    GIT_TAG        4.0.7
-)
-
 # Compatibility options
 option(MZ_COMPAT "Enables compatibility layer" ON)
 # Compression library options
+option(MZ_ZLIB "Enables ZLIB compression" ON)
+option(MZ_BZIP2 "Enables BZIP2 compression" ON)
+option(MZ_LZMA "Enables LZMA & XZ compression" ON)
+option(MZ_ZSTD "Enables ZSTD compression" ON)
 option(MZ_LIBCOMP "Enables Apple compression" OFF)
 option(MZ_FETCH_LIBS "Enables fetching third-party libraries if not found" ${WIN32})
 option(MZ_FORCE_FETCH_LIBS "Enables fetching third-party libraries always" OFF)
@@ -39,4 +25,10 @@ option(MZ_BUILD_UNIT_TESTS "Builds minizip unit test project" OFF)
 option(MZ_BUILD_FUZZ_TESTS "Builds minizip fuzzer executables" OFF)
 option(MZ_CODE_COVERAGE "Builds with code coverage flags" OFF)
 
-FetchContent_MakeAvailable(minizip_git)
+AddExternalPackage(
+    minizip
+        4.0.7
+        https://github.com/zlib-ng/minizip-ng.git
+        NO
+        NO
+)

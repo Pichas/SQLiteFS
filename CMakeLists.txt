@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(sqlitefs LANGUAGES CXX VERSION 1.1.0 DESCRIPTION "In sqlite file system")
+project(sqlitefs LANGUAGES CXX VERSION 1.1.3 DESCRIPTION "In sqlite file system")
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -35,12 +35,7 @@ option(TRACY_NO_EXIT "Client executable does not exit until all profile data is 
 set(CODEC_TYPE AES256 CACHE STRING "Set default codec type")
 
 
-if(BUILD_SHARED_LIBS)
-    add_library(${PROJECT_NAME} SHARED)
-else()
-    add_library(${PROJECT_NAME})
-endif(BUILD_SHARED_LIBS)
-
+add_library(${PROJECT_NAME})
 add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
 
@@ -56,6 +51,7 @@ if(SQLITEFS_ENABLE_PROFILER)
 endif()
 
 
+option(USE_CPM "Use CPM to manage deps" ON)
 add_subdirectory(external)
 
 

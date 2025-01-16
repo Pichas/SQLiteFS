@@ -1,21 +1,15 @@
-if(TARGET Tracy::TracyClient)
-    return()
-endif()
-
-message(STATUS "external: downloading target 'Tracy::TracyClient'")
-
-include(FetchContent)
-FetchContent_Declare(
-    tracy_git
-    GIT_REPOSITORY https://github.com/wolfpld/tracy.git
-    GIT_TAG v0.11.1
-)
-
 option(TRACY_STATIC "Whether to build Tracy as a static library" ON)
 option(TRACY_ENABLE "Enable profiling" ON)
 option(TRACY_NO_EXIT "Client executable does not exit until all profile data is sent to server" OFF)
 
-FetchContent_MakeAvailable(tracy_git)
+
+AddExternalPackage(
+    TracyClient
+        v0.11.1
+        https://github.com/wolfpld/tracy.git
+        NO
+        NO
+)
 
 
 option(TRACY_BUILD_PROFILER "Build tracy profiler exe" OFF)
