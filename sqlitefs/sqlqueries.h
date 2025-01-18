@@ -46,21 +46,22 @@ const inline std::string PWD = R"query(
 
 // clang-format off
 
-const inline std::string LS            = R"query(SELECT * FROM fs WHERE parent IS ?)query";
-const inline std::string GET_ID        = R"query(SELECT id FROM fs WHERE parent IS ? AND name IS ?)query";
-const inline std::string GET_PARENT_ID = R"query(SELECT parent FROM fs WHERE id IS ?)query";
-const inline std::string GET_INFO      = R"query(SELECT * FROM fs WHERE id IS ?)query";
-const inline std::string RM            = R"query(DELETE FROM fs WHERE parent IS ? AND name IS ?)query";
-const inline std::string MKDIR         = R"query(INSERT INTO fs (parent, name) VALUES (?, ?))query";
+const inline std::string LS             = R"query(SELECT * FROM fs WHERE parent IS ?)query";
+const inline std::string GET_ID         = R"query(SELECT id FROM fs WHERE parent IS ? AND name IS ?)query";
+const inline std::string GET_PARENT_ID  = R"query(SELECT parent FROM fs WHERE id IS ?)query";
+const inline std::string GET_NODE_BY_ID = R"query(SELECT * FROM fs WHERE id IS ?)query";
+const inline std::string GET_NODE       = R"query(SELECT * FROM fs WHERE parent IS ? AND name IS ?)query";
+const inline std::string RM             = R"query(DELETE FROM fs WHERE id IS ?)query";
+const inline std::string MKDIR          = R"query(INSERT INTO fs (parent, name) VALUES (?, ?))query";
 
-const inline std::string SET_PARENT_ID = R"query(UPDATE fs SET parent = ? WHERE id IS ?)query";
-const inline std::string SET_NAME      = R"query(UPDATE fs SET name = ? WHERE id IS ?)query";
+const inline std::string SET_PARENT_ID  = R"query(UPDATE fs SET parent = ? WHERE id IS ?)query";
+const inline std::string SET_NAME       = R"query(UPDATE fs SET name = ? WHERE id IS ?)query";
 
-const inline std::string COPY_FILE_FS  = R"query(INSERT INTO fs (parent, name, attrib, size, size_raw, compression) SELECT ?, ?, attrib, size, size_raw, compression FROM fs WHERE id is ?;)query";
-const inline std::string COPY_FILE_RAW = R"query(INSERT INTO data (id, data) SELECT ?, data FROM data WHERE id is ?;)query";
+const inline std::string COPY_FILE_FS   = R"query(INSERT INTO fs (parent, name, attrib, size, size_raw, compression) SELECT ?, ?, attrib, size, size_raw, compression FROM fs WHERE id is ?;)query";
+const inline std::string COPY_FILE_RAW  = R"query(INSERT INTO data (id, data) SELECT last_insert_rowid(), data FROM data WHERE id is ?;)query";
 
-const inline std::string TOUCH         = R"query(INSERT INTO fs (parent, name, size, size_raw, compression, attrib) VALUES (?, ?, ?, ?, ?, 1))query";
-const inline std::string SET_FILE_DATA = R"query(INSERT INTO data (id, data) VALUES (?, ?))query";
-const inline std::string GET_FILE_DATA = R"query(SELECT data FROM data WHERE id IS ?)query";
+const inline std::string TOUCH          = R"query(INSERT INTO fs (parent, name, size, size_raw, compression, attrib) VALUES (?, ?, ?, ?, ?, 1))query";
+const inline std::string SET_FILE_DATA  = R"query(INSERT INTO data (id, data) VALUES (?, ?))query";
+const inline std::string GET_FILE_DATA  = R"query(SELECT data FROM data WHERE id IS ?)query";
 
 // clang-format on

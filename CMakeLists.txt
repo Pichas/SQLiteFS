@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(sqlitefs LANGUAGES CXX VERSION 1.1.3 DESCRIPTION "In sqlite file system")
+project(sqlitefs LANGUAGES CXX VERSION 1.1.4 DESCRIPTION "In sqlite file system")
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -51,7 +51,7 @@ if(SQLITEFS_ENABLE_PROFILER)
 endif()
 
 
-option(USE_CPM "Use CPM to manage deps" ON)
+option(USE_CPM "Use CPM to manage deps" ${PROJECT_IS_TOP_LEVEL})
 add_subdirectory(external)
 
 

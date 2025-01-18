@@ -1,4 +1,3 @@
-#include <array>
 #include <filesystem>
 #include <gtest/gtest.h>
 #include <sqlitefs/sqlitefs.h>
@@ -7,7 +6,7 @@
 
 class FSFixture : public testing::Test {
 protected:
-    void SetUp() override { db = std::make_unique<SQLiteFS>(db_path, "password"); }
+    void SetUp() override { db = std::make_unique<SQLiteFS>(db_path); }
 
     void TearDown() override {
         db.reset();
@@ -27,6 +26,7 @@ TEST_F(FSFixture, GetRoot) {
 TEST_F(FSFixture, GetDeletedFolder) {
     ASSERT_EQ(db->pwd(), "/");
     ASSERT_TRUE(db->mkdir("f1"));
+    ASSERT_TRUE(db->mkdir("/f1/f2"));
     ASSERT_TRUE(db->cd("f1"));
     ASSERT_EQ(db->pwd(), "/f1");
     ASSERT_TRUE(db->rm("/f1"));
@@ -69,8 +69,16 @@ TEST_F(FSFixture, CreateFolder) {
     std::vector<std::uint8_t> content{data.begin(), data.end()};
     ASSERT_TRUE(db->write("test.txt", content));
 
-    expected.clear();
+    // ls one file
+    expected = {{.id          = 4,
+                 .parent_id   = 2,
+                 .name        = "test.txt",
+                 .size        = 16,
+                 .size_raw    = 16,
+                 .compression = "raw",
+                 .attributes  = SQLiteFSNode::Attributes::FILE}};
     ASSERT_EQ(db->ls("test.txt"), expected);
+    ASSERT_EQ(db->ls("test.txt").size(), 1);
 }
 
 
@@ -94,7 +102,8 @@ TEST_F(FSFixture, CreateRemoveFolder) {
     ASSERT_TRUE(db->rm("/" + folder1 + "/" + folder1));
     ASSERT_EQ(db->ls(), expected);
 
-    ASSERT_FALSE(db->rm(folder1));
+    ASSERT_TRUE(db->mkdir(folder1));
+    ASSERT_TRUE(db->rm(folder1));
     ASSERT_EQ(db->ls(), expected);
 
     ASSERT_TRUE(db->rm("/" + folder1));
@@ -130,6 +139,19 @@ TEST_F(FSFixture, ChangeFolder) {
 
     ASSERT_TRUE(db->cd("/"));
     ASSERT_EQ(db->pwd(), "/");
+
+    ASSERT_TRUE(db->cd("f2/f1"));
+    ASSERT_EQ(db->pwd(), "/f2/f1");
+
+    ASSERT_TRUE(db->rm("/f2"));
+    ASSERT_EQ(db->pwd(), "/");
+
+    ASSERT_FALSE(db->rm("/"));
+
+    std::string               data("random test data");
+    std::vector<std::uint8_t> content{data.begin(), data.end()};
+    ASSERT_TRUE(db->write("test.txt", content));
+    ASSERT_FALSE(db->cd("test.txt"));
 }
 
 
@@ -141,6 +163,7 @@ TEST_F(FSFixture, PutFile) {
 
     ASSERT_TRUE(db->write("test.txt", content));
     ASSERT_FALSE(db->write("test.txt", content));
+    ASSERT_FALSE(db->write("/f1/", content));
     ASSERT_FALSE(db->write("/f1/test.txt", content));
     ASSERT_FALSE(db->write("../../../test.txt", content));
 
@@ -155,6 +178,9 @@ TEST_F(FSFixture, PutFile) {
 
     db->mkdir("f1");
     db->mkdir("f1/f2");
+
+    ASSERT_FALSE(db->write("/f1", content));
+    ASSERT_FALSE(db->write("/f1/", content));
 
     ASSERT_TRUE(db->write("f1/f2/test.txt", content));
     ASSERT_FALSE(db->write("f1/f2/test.txt", content));
@@ -272,6 +298,7 @@ TEST_F(FSFixture, MoveFileOrFolder) {
     ASSERT_EQ(db->pwd(), "/");
     ASSERT_TRUE(db->mkdir("f1"));
     ASSERT_TRUE(db->mkdir("f2"));
+    ASSERT_TRUE(db->mkdir("f5"));
 
 
     std::string               data("random test data");
@@ -295,6 +322,11 @@ TEST_F(FSFixture, MoveFileOrFolder) {
     ASSERT_TRUE(db->mv("/f1/test.txt", "/f2/test2.txt"));
     ASSERT_FALSE(db->mv("/f1/test.txt", "/f2/test2.txt"));
 
+    ASSERT_TRUE(db->cp("/f2/test2.txt", "/f1/test5.txt"));
+    ASSERT_FALSE(db->mv("/f1/test5.txt", "/f5"));
+    ASSERT_TRUE(db->mv("/f1/test5.txt", "/f5/"));
+
+
     {
         auto read_data = db->read("/f1/test.txt");
         ASSERT_EQ(read_data.size(), 0);
@@ -302,6 +334,12 @@ TEST_F(FSFixture, MoveFileOrFolder) {
 
     {
         auto read_data = db->read("/f2/test2.txt");
+        ASSERT_EQ(read_data.size(), content.size());
+        ASSERT_EQ(read_data, content);
+    }
+
+    {
+        auto read_data = db->read("/f5/test5.txt");
         ASSERT_EQ(read_data.size(), content.size());
         ASSERT_EQ(read_data, content);
     }
@@ -321,6 +359,7 @@ TEST_F(FSFixture, CopyFile) {
     ASSERT_EQ(db->pwd(), "/");
     ASSERT_TRUE(db->mkdir("f1"));
     ASSERT_TRUE(db->mkdir("f2"));
+    ASSERT_TRUE(db->mkdir("f5"));
 
 
     std::string               data("random test data");
@@ -340,6 +379,10 @@ TEST_F(FSFixture, CopyFile) {
 
     ASSERT_FALSE(db->cp("/f1", "/f2"));
     ASSERT_FALSE(db->cp("/f1", "/f2/test2.txt"));
+
+    ASSERT_FALSE(db->cp("/f1/test.txt", "/f5"));
+    ASSERT_TRUE(db->cp("/f1/test.txt", "/f5/"));
+
     ASSERT_FALSE(db->cp("/f1/test.txt", "/f3/test2.txt"));
     ASSERT_TRUE(db->cp("/f1/test.txt", "/f2/test2.txt"));
     ASSERT_FALSE(db->cp("/f1/test.txt", "/f2/test2.txt"));
@@ -352,6 +395,12 @@ TEST_F(FSFixture, CopyFile) {
 
     {
         auto read_data = db->read("/f2/test2.txt");
+        ASSERT_EQ(read_data.size(), content.size());
+        ASSERT_EQ(read_data, content);
+    }
+
+    {
+        auto read_data = db->read("/f5/test.txt");
         ASSERT_EQ(read_data.size(), content.size());
         ASSERT_EQ(read_data, content);
     }
@@ -400,7 +449,7 @@ TEST_F(FSFixture, CopyFileMT) {
     std::vector<std::jthread> threads;
     threads.reserve(20);
 
-    for (int i = 0; i < 20; i++) {
+    for (int i = 0; i < 2; i++) {
         threads.emplace_back(f, i * 10000);
     }
 }

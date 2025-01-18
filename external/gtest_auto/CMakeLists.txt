@@ -13,10 +13,12 @@ option(BENCHMARK_USE_BUNDLED_GTEST "Use bundled GoogleTest. If disabled, the fin
 option(BENCHMARK_ENABLE_LIBPFM "Enable performance counters provided by libpfm" OFF)
 
 
-AddExternalPackage(
-    benchmark
-        v1.9.0
-        https://github.com/google/benchmark.git
-        NO
-        fix_cmake_file.cmake.patch
-)
+if (SQLITEFS_BUILD_TESTS)
+    AddExternalPackage(
+        benchmark
+            v1.9.0
+            https://github.com/google/benchmark.git
+            NO
+            fix_cmake_file.cmake.patch
+    )
+endif()

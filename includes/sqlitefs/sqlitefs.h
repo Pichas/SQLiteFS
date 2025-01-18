@@ -57,6 +57,7 @@ struct SQLiteFS {
     DataOutput callLoadFunc(const std::string& name, DataInput data);
 
 protected:
+    // if you want to expand interface
     void rawCall(const std::function<void(SQLite::Database*)>& callback);
 
 private:

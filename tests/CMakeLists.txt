@@ -1,5 +1,3 @@
-add_subdirectory(gtest)
-
 project(SQLiteFSTests LANGUAGES  CXX)
 
 set(CMAKE_FOLDER_BACKUP ${CMAKE_FOLDER})

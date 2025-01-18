@@ -47,9 +47,9 @@ struct SQLiteFS::Impl {
         if (!key.empty()) {
             SecureString secure{key};
             if (SQLite::Database::isUnencrypted(m_db_path)) {
-                m_db.rekey(secure.data());
+                m_db.rekey(secure);
             } else {
-                m_db.key(secure.data());
+                m_db.key(secure);
             }
         }
 
@@ -66,8 +66,9 @@ struct SQLiteFS::Impl {
 
         std::lock_guard lock(m_mutex);
 
-        const auto& [path_id, name] = getPathAndName(full_path);
+        const auto& [path_id, name] = splitPathAndName(full_path);
         if (!path_id) {
+            m_last_error = "Can't find path";
             return false;
         }
 
@@ -79,24 +80,42 @@ struct SQLiteFS::Impl {
 
         std::lock_guard lock(m_mutex);
 
-        if (auto node = pathResolver(path); node) {
-            m_cwd = *node;
-            return true;
-        }
-        return false;
-    }
-
-    bool rm(const std::string& full_path) {
-        SQLITE_SCOPED_PROFILER;
-
-        std::lock_guard lock(m_mutex);
-
-        const auto& [path_id, name] = getPathAndName(full_path);
+        auto path_id = resolve(path);
         if (!path_id) {
             return false;
         }
 
-        return exec(RM, *path_id, name);
+        auto n = node(*path_id);
+        if (n && n->attributes != SQLiteFSNode::Attributes::FILE) {
+            m_cwd = n->id;
+            return true;
+        }
+
+        m_last_error = "Can't find path";
+        return false;
+    }
+
+    bool rm(const std::string& path) {
+        SQLITE_SCOPED_PROFILER;
+
+        if (path == "/") {
+            return false;
+        }
+
+        std::lock_guard lock(m_mutex);
+
+        auto path_id = resolve(path);
+        if (!path_id) {
+            return false;
+        }
+        auto result = exec(RM, *path_id);
+
+        // if folder in current path was removed
+        if (!node(m_cwd)) {
+            m_cwd = ROOT;
+        }
+
+        return result;
     }
 
     std::string pwd() const {
@@ -105,11 +124,7 @@ struct SQLiteFS::Impl {
         std::lock_guard lock(m_mutex);
 
         auto query = select(PWD, m_cwd);
-        if (query.executeStep()) {
-            return query.getColumn(0).getString();
-        }
-
-        return {};
+        return query.executeStep() ? query.getColumn(0).getString() : "";
     }
 
     std::vector<SQLiteFSNode> ls(const std::string& path) const {
@@ -117,19 +132,22 @@ struct SQLiteFS::Impl {
 
         std::lock_guard lock(m_mutex);
 
+        auto current_node = node(path + "/");
+        if (!current_node) {
+            return {};
+        }
+
         std::vector<SQLiteFSNode> content;
 
-        const auto& [path_id, name] = getPathAndName(path + "/");
-        if (!path_id) {
+        if (current_node->attributes != SQLiteFSNode::Attributes::FILE) {
+            auto query = select(LS, current_node->id);
+            while (auto child_node = node(query)) {
+                content.emplace_back(std::move(*child_node));
+            }
             return content;
         }
 
-        auto query = select(LS, *path_id);
-        while (auto node = getNodeData(query)) {
-            content.emplace_back(std::move(*node));
-        }
-
-        return content;
+        return {*current_node};
     }
 
     bool write(const std::string& full_path, DataInput data, const std::string& alg) {
@@ -139,26 +157,34 @@ struct SQLiteFS::Impl {
 
         std::lock_guard lock(m_mutex);
 
-        const auto& [path_id, name] = getPathAndName(full_path);
-        if (!path_id) {
+        const auto& [path_id, name] = splitPathAndName(full_path);
+        if (!path_id || name.empty()) {
+            m_last_error = "Can't find path";
             return false;
         }
 
+
+        bool                success = true;
         SQLite::Transaction transaction(m_db);
-        if (exec(TOUCH,
-                 *path_id,
-                 name,
-                 static_cast<std::int64_t>(data_modified.size()),
-                 static_cast<std::int64_t>(data.size()),
-                 alg)) {
-            auto id = getNodeId(*path_id, name);
-            if (id && saveBlob(*id, data_modified)) {
-                transaction.commit();
-                return true;
-            }
+
+        success &= exec(TOUCH,
+                        *path_id,
+                        name,
+                        static_cast<std::int64_t>(data_modified.size()),
+                        static_cast<std::int64_t>(data.size()),
+                        alg);
+
+        auto new_node = node(*path_id, name);
+        success &= new_node && saveBlob(new_node->id, data_modified);
+
+        if (success) {
+            transaction.commit();
+        } else {
+            m_last_error = "Internal error: Can't write data";
+            transaction.rollback();
         }
-        transaction.rollback();
-        return false;
+
+        return success;
     }
 
     DataOutput read(const std::string& full_path) const {
@@ -166,35 +192,31 @@ struct SQLiteFS::Impl {
 
         std::lock_guard lock(m_mutex);
 
-        const auto& [path_id, name] = getPathAndName(full_path);
-        if (!path_id) {
-            return {};
-        }
-
-        auto id = getNodeId(*path_id, name);
+        auto id = resolve(full_path);
         if (!id) {
             return {};
         }
 
-        auto data_query = select(GET_FILE_DATA, *id);
-        if (data_query.executeStep()) {
-            auto data = data_query.getColumn(0).getString();
-            auto view = std::span{reinterpret_cast<const std::uint8_t*>(data.data()), data.size()};
-
-            auto file_info_query = select(GET_INFO, *id);
-            auto file            = getNodeData(file_info_query);
-            if (!file) {
-                m_last_error = "DB is broken. Can't find file info "s + std::to_string(*id);
+        auto current_node = node(*id);
+        if (current_node && current_node->attributes == SQLiteFSNode::Attributes::FILE) {
+            auto data_query = select(GET_FILE_DATA, *id);
+            if (!data_query.executeStep()) {
+                assert(false && "internal error: DB is broken. No data for file node");
                 return {};
             }
 
-            const auto& raw_data = internalCall(file->compression, view, m_load_funcs);
-            if (static_cast<std::size_t>(file->size_raw) != raw_data.size()) {
-                m_last_error = "File size doesn't mach.\nFS meta - "s + std::to_string(file->size_raw) + ", File - " +
-                               std::to_string(raw_data.size());
+            auto data = data_query.getColumn(0).getString();
+            auto view = std::span{reinterpret_cast<const std::uint8_t*>(data.data()), data.size()};
+
+            const auto& raw_data = internalCall(current_node->compression, view, m_load_funcs);
+            if (static_cast<std::size_t>(current_node->size_raw) != raw_data.size()) {
+                m_last_error = "File size doesn't mach.\nFS meta - "s + std::to_string(current_node->size_raw) +
+                               ", File - " + std::to_string(raw_data.size());
             }
             return raw_data;
         }
+
+        m_last_error = "Can't read folder data";
         return {};
     }
 
@@ -203,39 +225,44 @@ struct SQLiteFS::Impl {
 
         std::lock_guard lock(m_mutex);
 
-        const auto& [f_path_id, f_name] = getPathAndName(from);
-        if (!f_path_id) {
+        auto [target_path_id, target_name] = splitPathAndName(to);
+        if (!target_path_id) {
             return false;
         }
 
-        auto f_id = getNodeId(*f_path_id, f_name);
-        if (!f_id) {
+        auto source = node(from);
+        if (!source) {
             return false;
         }
 
-        const auto& [t_path_id, t_name] = getPathAndName(to);
-        if (!t_path_id) {
+        if (target_name.empty()) {
+            target_name = source->name;
+        }
+
+
+        if (auto target = node(*target_path_id, target_name);
+            target && target->attributes == SQLiteFSNode::Attributes::FILE) {
+            m_last_error = "The target cannot be an existing file";
             return false;
         }
 
-        auto file_info_query = select(GET_INFO, *t_path_id);
-        auto file            = getNodeData(file_info_query);
-        if (file->attributes == SQLiteFSNode::Attributes::FILE) {
-            m_last_error = "you can only move to another folder";
-            return false;
+
+        auto                success = true;
+        SQLite::Transaction transaction(m_db);
+
+        success &= exec(SET_PARENT_ID, *target_path_id, source->id);
+        if (source->name != target_name) {
+            success &= exec(SET_NAME, target_name, source->id);
         }
 
-        if (!exec(SET_PARENT_ID, *t_path_id, *f_id)) {
-            m_last_error = "internal error: can't move file";
-            return false;
+        if (success) {
+            transaction.commit();
+        } else {
+            m_last_error = "Internal error: can't move node";
+            transaction.rollback();
         }
 
-        if (!exec(SET_NAME, t_name, *f_id)) {
-            m_last_error = "internal error: can't move file";
-            return false;
-        }
-
-        return true;
+        return success;
     }
 
     bool cp(const std::string& from, const std::string& to) {
@@ -243,45 +270,42 @@ struct SQLiteFS::Impl {
 
         std::lock_guard lock(m_mutex);
 
-        const auto& [f_path_id, f_name] = getPathAndName(from);
-        if (!f_path_id) {
+        auto [target_path_id, target_name] = splitPathAndName(to);
+        if (!target_path_id) {
             return false;
         }
 
-        auto f_id = getNodeId(*f_path_id, f_name);
-        if (!f_id) {
+        auto source = node(from);
+        if (!source) {
             return false;
         }
 
-        auto file_info_query = select(GET_INFO, *f_id);
-        auto file            = getNodeData(file_info_query);
-        if (file->attributes != SQLiteFSNode::Attributes::FILE) {
-            m_last_error = "you can only copy files and one by one";
+        if (target_name.empty()) {
+            target_name = source->name;
+        }
+
+
+        if (auto target = node(*target_path_id, target_name);
+            target && target->attributes == SQLiteFSNode::Attributes::FILE) {
+            m_last_error = "The target cannot be an existing file";
             return false;
         }
 
-        const auto& [t_path_id, t_name] = getPathAndName(to);
-        if (!t_path_id) {
-            return false;
+
+        bool                success = true;
+        SQLite::Transaction transaction(m_db);
+
+        success &= exec(COPY_FILE_FS, *target_path_id, target_name, source->id);
+        success &= exec(COPY_FILE_RAW, source->id);
+
+        if (success) {
+            transaction.commit();
+        } else {
+            m_last_error = "Internal error: can't copy node";
+            transaction.rollback();
         }
 
-        if (!exec(COPY_FILE_FS, *t_path_id, t_name, *f_id)) {
-            m_last_error = "internal error: can't copy file";
-            return false;
-        }
-
-        auto t_id = getNodeId(*t_path_id, t_name);
-        assert(t_id && "internal error: can't copy file");
-        if (!t_id) {
-            return false;
-        }
-
-        if (!exec(COPY_FILE_RAW, *t_id, *f_id)) {
-            m_last_error = "internal error: can't copy file";
-            return false;
-        }
-
-        return true;
+        return success;
     }
 
     void vacuum() {
@@ -293,15 +317,23 @@ struct SQLiteFS::Impl {
         std::string temp;
         {
             std::lock_guard lock(m_mutex);
-            temp = m_last_error;
+            temp.swap(m_last_error);
         }
         return temp;
     };
 
     const std::string& path() const noexcept { return m_db_path; }
 
-    void registerSaveFunc(const std::string& name, const ConvertFunc& func) { m_save_funcs.try_emplace(name, func); }
-    void registerLoadFunc(const std::string& name, const ConvertFunc& func) { m_load_funcs.try_emplace(name, func); }
+    void registerSaveFunc(const std::string& name, const ConvertFunc& func) {
+        SQLITE_SCOPED_PROFILER;
+        assert(!m_save_funcs.contains(name));
+        m_save_funcs.try_emplace(name, func);
+    }
+    void registerLoadFunc(const std::string& name, const ConvertFunc& func) {
+        SQLITE_SCOPED_PROFILER;
+        assert(!m_load_funcs.contains(name));
+        m_load_funcs.try_emplace(name, func);
+    }
 
     DataOutput callSaveFunc(const std::string& name, DataInput data) {
         SQLITE_SCOPED_PROFILER;
@@ -313,6 +345,7 @@ struct SQLiteFS::Impl {
     }
 
     void rawCall(const std::function<void(SQLite::Database*)>& callback) {
+        SQLITE_SCOPED_PROFILER;
         std::lock_guard lock(m_mutex);
         callback(&m_db);
     }
@@ -323,6 +356,7 @@ private:
         if (it != map.end()) {
             return it->second(data);
         }
+        assert(false && "Function doesn't exist");
         return {};
     }
 
@@ -365,7 +399,34 @@ private:
         return false;
     }
 
-    static std::optional<SQLiteFSNode> getNodeData(SQLite::Statement& query) {
+
+    std::optional<SQLiteFSNode> node(const std::string& path) const {
+        SQLITE_SCOPED_PROFILER;
+
+        const auto& [path_id, name] = splitPathAndName(path);
+        if (!path_id) {
+            m_last_error = "Can't find path";
+            return std::nullopt;
+        }
+        return name.empty() ? node(*path_id) : node(*path_id, name);
+    }
+
+    std::optional<SQLiteFSNode> node(std::uint32_t id) const {
+        SQLITE_SCOPED_PROFILER;
+
+        auto query = select(GET_NODE_BY_ID, id);
+        return node(query);
+    }
+
+
+    std::optional<SQLiteFSNode> node(std::uint32_t path_id, const std::string& name) const {
+        SQLITE_SCOPED_PROFILER;
+
+        auto query = select(GET_NODE, path_id, name);
+        return node(query);
+    }
+
+    std::optional<SQLiteFSNode> node(SQLite::Statement& query) const {
         SQLITE_SCOPED_PROFILER;
 
         if (query.executeStep()) {
@@ -380,32 +441,12 @@ private:
 
             return out;
         }
+
+        m_last_error = "Can't find node";
         return std::nullopt;
     }
 
-    std::optional<std::uint32_t> getNodeId(std::uint32_t path_id, const std::string& name) const {
-        SQLITE_SCOPED_PROFILER;
-
-        auto query = select(GET_ID, path_id, name);
-
-        if (query.executeStep()) {
-            return query.getColumn(0).getInt();
-        }
-        return std::nullopt;
-    }
-
-    std::optional<std::uint32_t> getParentId(std::uint32_t path_id) const {
-        SQLITE_SCOPED_PROFILER;
-
-        auto query = select(GET_PARENT_ID, path_id);
-
-        if (query.executeStep()) {
-            return query.getColumn(0).getInt();
-        }
-        return std::nullopt;
-    }
-
-    std::optional<std::uint32_t> pathResolver(const std::string& path) const {
+    std::optional<std::uint32_t> resolve(const std::string& path) const {
         SQLITE_SCOPED_PROFILER;
 
         if (path.empty()) {
@@ -424,17 +465,28 @@ private:
                 continue;
             }
 
-            if (auto node_id = name == ".." ? getParentId(id) : getNodeId(id, name)) {
-                id = *node_id;
+            auto current_node = node(id);
+            if (!current_node) {
+                return std::nullopt;
+            }
+
+            if (name == "..") {
+                id = current_node->parent_id;
                 continue;
             }
 
+            if (auto n = node(id, name); n) {
+                id = n->id;
+                continue;
+            }
+
+            m_last_error = "Can't find target path";
             return std::nullopt;
         }
         return id;
     }
 
-    std::pair<std::optional<std::uint32_t>, std::string> getPathAndName(const std::string& full_path) const {
+    std::pair<std::optional<std::uint32_t>, std::string> splitPathAndName(const std::string& full_path) const {
         SQLITE_SCOPED_PROFILER;
 
         auto pos = full_path.find_last_of('/');
@@ -445,7 +497,7 @@ private:
 
         auto path = full_path.substr(0, pos + 1);
         auto name = full_path.substr(pos + 1);
-        return {pathResolver(path), name};
+        return {resolve(path), std::move(name)};
     }
 
 private:
