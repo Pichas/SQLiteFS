@@ -10,7 +10,7 @@ stages:
   stage: build
   interruptible: true
   script:
-    - cmake --preset clang
+    - cmake --preset clang -DUSE_CPM=OFF
     - cmake --build --preset clang --config Debug
     - cmake --build --preset clang --config Release
     - cd build

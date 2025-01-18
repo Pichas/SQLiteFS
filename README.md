@@ -1,10 +1,19 @@
 # SQLiteFS
 
-Simulate a local fs inside a sqlite database. Uses [SQLite3MultipleCiphers](https://github.com/utelle/SQLite3MultipleCiphers.git) to encrypt the whole database file including headers.
+Simulate a local fs inside a sqlite database. Based on SQLite 3.48.0.
+
+Uses:
+
+* [SQLite3MultipleCiphers](https://github.com/utelle/SQLite3MultipleCiphers.git) to encrypt the whole database file including headers
+* [SQLiteCpp](https://github.com/SRombauts/SQLiteCpp.git) as sqlite wrapper
+* [minizip](https://github.com/zlib-ng/minizip-ng.git) for data compression (optional)
+* [Tracy](https://github.com/wolfpld/tracy.git) if you need a profiler (optional)
 
 ## Support data modifications
 
 You can set a callback to modify the data before storing the data in the DB, such as compression or encryption, and another callback to decompress or decrypt. You can also combine them (zip+aes).
+
+You can also derive from SQLiteFS type and expand interface by using the `void rawCall(const std::function<void(SQLite::Database*)>& callback);` function from derived type.
 
 ## Supported functions
 
@@ -18,6 +27,8 @@ You can set a callback to modify the data before storing the data in the DB, suc
 * write - write file to the db
 * read - read file from the db
 
+>NOTE: all operations are thread safe
+
 ### Example
 
 ```cpp
@@ -30,8 +41,31 @@ You can set a callback to modify the data before storing the data in the DB, suc
     fs.cd("folder");
 
     fs.write("test.txt", content, "raw");
+    // fs.write("test.txt", content, "lzma"); // if compression enabled
     auto read_data = fs.read("test.txt");
 
+    ASSERT_EQ(read_data, content);
+```
+
+You also can create your own way to store data.
+
+```cpp
+    fs->registerSaveFunc("reverse",
+                         [](SQLiteFS::DataInput data) { 
+                            return SQLiteFS::DataOutput{data.rbegin(), data.rend()}; });
+
+    fs->registerLoadFunc("reverse",
+                         [](SQLiteFS::DataInput data) { 
+                            return SQLiteFS::DataOutput{data.rbegin(), data.rend()}; });
+
+
+    std::string               data("random test data");
+    std::vector<std::uint8_t> content{data.begin(), data.end()};
+
+    fs->write("test.txt", content, "reverse");
+    auto read_data = fs->read("test.txt");
+
+    ASSERT_EQ(read_data.size(), content.size());
     ASSERT_EQ(read_data, content);
 ```
 
@@ -39,24 +73,32 @@ Check tests for more examples
 
 ## How to include into your project
 
-### Import source
+### CMakeLists Example
 
 ```cmake
-include(FetchContent)
+project(MyCoolProject)
+add_executable(${PROJ_NAME} main.cpp )
 
+# Import sources
+include(FetchContent)
 FetchContent_Declare(
     sqlitefs_external
     GIT_REPOSITORY https://gitlab.com/p34ch-main/sqlitefs.git
-    GIT_TAG v1.0.0
+    GIT_TAG main   # put the latest version tag
 )
-
 FetchContent_MakeAvailable(sqlitefs_external)
+
+# add to the project
+target_link_libraries(${PROJECT_NAME} sqlitefs)
 ```
 
-### Main CMakeLists
+```cpp
+// main.cpp
+#include <sqlitefs/sqlitefs.h>
 
-```cmake
-target_link_libraries(${PROJECT_NAME} sqlitefs)
+int main(){
+    SQLiteFS fs;
+}
 ```
 
 ### Configuration

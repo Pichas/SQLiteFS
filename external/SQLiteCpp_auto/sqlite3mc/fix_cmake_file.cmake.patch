@@ -1,8 +1,8 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index cc50e11..f5ad9e1 100644
+index ff431fc..8f318ae 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -297,7 +297,7 @@ endif()
+@@ -303,7 +303,7 @@ endif()
  add_library(${SQLITE3MC_TARGET} ${SQLITE3MC_LINK}
    ${SQLITE3MC_BASE_SRCS}
  )
@@ -11,25 +11,31 @@ index cc50e11..f5ad9e1 100644
    ${SQLITE3MC_INCLUDEDIRS}
  )
  target_compile_definitions(${SQLITE3MC_TARGET} PRIVATE
-@@ -353,6 +353,9 @@ INSTALL(TARGETS ${SQLITE3MC_TARGET}
-   PUBLIC_HEADER DESTINATION include/${CMAKE_PROJECT_NAME}
-   RUNTIME DESTINATION bin
- )
-+if (CMAKE_C_COMPILER_ID STREQUAL "Clang")
-+  target_compile_options(${SQLITE3MC_TARGET} PRIVATE -msse4.2 -maes)
-+endif()
- 
- # Shell Executable project
- if(SQLITE3MC_BUILD_SHELL)
+diff --git a/src/aegis/common/cpu.c b/src/aegis/common/cpu.c
+index ab6c393..c8e1f98 100644
+--- a/src/aegis/common/cpu.c
++++ b/src/aegis/common/cpu.c
+@@ -147,7 +147,7 @@ static void
+ _cpuid(unsigned int cpu_info[4U], const unsigned int cpu_info_type)
+ {
+ #if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
+-    __cpuid((int *) cpu_info, cpu_info_type);
++    (__cpuid)((int *) cpu_info, cpu_info_type);
+ #elif defined(HAVE_CPUID)
+     cpu_info[0] = cpu_info[1] = cpu_info[2] = cpu_info[3] = 0;
+ #    ifdef __i386__
 diff --git a/src/fastpbkdf2.c b/src/fastpbkdf2.c
-index 7ed8e16..3ca937d 100644
+index 7ed8e16..6a12322 100644
 --- a/src/fastpbkdf2.c
 +++ b/src/fastpbkdf2.c
-@@ -27,7 +27,6 @@
+@@ -27,8 +27,10 @@
  #ifdef _MSC_VER
  #define restrict
  #define inline __inline
--#define _Pragma __pragma
++#ifndef _Pragma
+ #define _Pragma __pragma
  #endif
++#endif
  
  /* --- Common useful things --- */
+ #ifndef MIN
