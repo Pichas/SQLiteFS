@@ -20,7 +20,7 @@ struct SQLiteFSNode final {
     std::int64_t  size_raw = 0;
     std::string   compression;
 
-    enum Attributes : std::uint32_t { FILE = 1 };
+    using Attributes      = enum : std::uint32_t { FILE = 1 };
     Attributes attributes = {};
 
     auto operator<=>(const SQLiteFSNode&) const noexcept = default;
