@@ -62,12 +62,16 @@ function(AddExternalPackage CURRENT_TARGET CURRENT_VERSION CURRENT_REPO DOWNLOAD
         if(PATCH_NAME)
             set(PATCH_CMD git apply ${PATCH_NAME})
         endif()
+        if(DOWNLOAD_ONLY STREQUAL "NO")
+            set(DOWNLOAD_ONLY "")
+        endif()
         include(FetchContent)
         FetchContent_Declare(
             ${CURRENT_TARGET}
-            GIT_REPOSITORY ${CURRENT_REPO}
-            GIT_TAG        ${CURRENT_VERSION}
-            PATCH_COMMAND  ${PATCH_CMD}
+            GIT_REPOSITORY   ${CURRENT_REPO}
+            GIT_TAG          ${CURRENT_VERSION}
+            PATCH_COMMAND    ${PATCH_CMD}
+            EXCLUDE_FROM_ALL ${DOWNLOAD_ONLY}
             UPDATE_DISCONNECTED 1
         )
         FetchContent_MakeAvailable(${CURRENT_TARGET})
