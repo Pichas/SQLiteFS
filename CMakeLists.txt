@@ -90,10 +90,12 @@ if(MZ_ENABLE)
     target_link_libraries(${PROJECT_NAME} PRIVATE minizip)
 
     if(MZ_ZLIB)
+        # zlib1g-dev
         target_compile_definitions(${PROJECT_NAME} PRIVATE HAVE_ZLIB)
     endif()
 
     if(MZ_LZMA)
+        # liblzma-dev
         target_compile_definitions(${PROJECT_NAME} PRIVATE HAVE_LZMA)
     endif()
 
@@ -102,6 +104,7 @@ if(MZ_ENABLE)
     endif()
 
     if(MZ_ZSTD)
+        # libzstd-dev
         target_compile_definitions(${PROJECT_NAME} PRIVATE HAVE_ZSTD)
     endif()
 endif()
