@@ -86,7 +86,7 @@ struct SQLiteFS::Impl {
         }
 
         auto n = node(*path_id);
-        if (n && n->attributes != SQLiteFSNode::Attributes::FILE) {
+        if (n && !(n->attributes & SQLiteFSNode::Attributes::FILE)) {
             m_cwd = n->id;
             return true;
         }
@@ -138,8 +138,9 @@ struct SQLiteFS::Impl {
         }
 
         std::vector<SQLiteFSNode> content;
+        content.reserve(1000);
 
-        if (current_node->attributes != SQLiteFSNode::Attributes::FILE) {
+        if (!(current_node->attributes & SQLiteFSNode::Attributes::FILE)) {
             auto query = select(LS, current_node->id);
             while (auto child_node = node(query)) {
                 content.emplace_back(std::move(*child_node));
@@ -198,7 +199,7 @@ struct SQLiteFS::Impl {
         }
 
         auto current_node = node(*id);
-        if (current_node && current_node->attributes == SQLiteFSNode::Attributes::FILE) {
+        if (current_node && (current_node->attributes & SQLiteFSNode::Attributes::FILE)) {
             auto data_query = select(GET_FILE_DATA, *id);
             if (!data_query.executeStep()) {
                 assert(false && "internal error: DB is broken. No data for file node");
@@ -241,7 +242,7 @@ struct SQLiteFS::Impl {
 
 
         if (auto target = node(*target_path_id, target_name);
-            target && target->attributes == SQLiteFSNode::Attributes::FILE) {
+            target && (target->attributes & SQLiteFSNode::Attributes::FILE)) {
             m_last_error = "The target cannot be an existing file";
             return false;
         }
@@ -286,7 +287,7 @@ struct SQLiteFS::Impl {
 
 
         if (auto target = node(*target_path_id, target_name);
-            target && target->attributes == SQLiteFSNode::Attributes::FILE) {
+            target && (target->attributes & SQLiteFSNode::Attributes::FILE)) {
             m_last_error = "The target cannot be an existing file";
             return false;
         }
