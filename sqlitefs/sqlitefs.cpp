@@ -311,6 +311,7 @@ struct SQLiteFS::Impl {
 
     void vacuum() {
         SQLITE_SCOPED_PROFILER;
+        std::lock_guard lock(m_mutex);
         exec("VACUUM");
     }
 
@@ -348,7 +349,7 @@ struct SQLiteFS::Impl {
     void rawCall(const std::function<void(SQLite::Database*)>& callback) {
         SQLITE_SCOPED_PROFILER;
         std::lock_guard lock(m_mutex);
-        callback(&m_db);
+        std::invoke(callback, &m_db);
     }
 
 private:
