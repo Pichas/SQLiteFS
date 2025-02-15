@@ -37,50 +37,54 @@ if(USE_CPM)
 endif(USE_CPM)
 
 
-function(AddExternalPackage CURRENT_TARGET CURRENT_VERSION CURRENT_REPO DOWNLOAD_ONLY PATCH_NAME)
-    if(TARGET ${CURRENT_TARGET})
-        return()
-    endif()
-    message(STATUS "external: downloading target '${CURRENT_TARGET}'")
-
-    if(NOT PATCH_NAME STREQUAL "NO")
-        set(PATCH_NAME ${CMAKE_CURRENT_SOURCE_DIR}/${PATCH_NAME})
-    endif()
-
-    if(USE_CPM)
-        if(PATCH_NAME)
-            set(PATCH_CMD ${PATCH_NAME})
+if(NOT COMMAND AddExternalPackage)
+    function(AddExternalPackage CURRENT_TARGET CURRENT_VERSION CURRENT_REPO DOWNLOAD_ONLY PATCH_NAME)
+        if(TARGET ${CURRENT_TARGET})
+            return()
         endif()
-        CPMAddPackage(
-            NAME ${CURRENT_TARGET}
-            GIT_REPOSITORY ${CURRENT_REPO}
-            GIT_TAG        ${CURRENT_VERSION}
-            PATCHES        ${PATCH_CMD}
-            DOWNLOAD_ONLY  ${DOWNLOAD_ONLY}
-        )
-    else()
-        if(PATCH_NAME)
-            set(PATCH_CMD git apply ${PATCH_NAME})
-        endif()
-        if(DOWNLOAD_ONLY STREQUAL "NO")
-            set(DOWNLOAD_ONLY "")
-        endif()
-        include(FetchContent)
-        FetchContent_Declare(
-            ${CURRENT_TARGET}
-            GIT_REPOSITORY   ${CURRENT_REPO}
-            GIT_TAG          ${CURRENT_VERSION}
-            PATCH_COMMAND    ${PATCH_CMD}
-            EXCLUDE_FROM_ALL ${DOWNLOAD_ONLY}
-            UPDATE_DISCONNECTED 1
-        )
-        FetchContent_MakeAvailable(${CURRENT_TARGET})
-    endif()
+        message(STATUS "external: downloading target '${CURRENT_TARGET}'")
 
-    set(${CURRENT_TARGET}_POPULATED ${${CURRENT_TARGET}_POPULATED} PARENT_SCOPE)
-    set(${CURRENT_TARGET}_SOURCE_DIR ${${CURRENT_TARGET}_SOURCE_DIR} PARENT_SCOPE)
-    set(${CURRENT_TARGET}_BINARY_DIR ${${CURRENT_TARGET}_BINARY_DIR} PARENT_SCOPE)
-endfunction()
+        if(NOT PATCH_NAME STREQUAL "NO")
+            set(PATCH_NAME ${CMAKE_CURRENT_SOURCE_DIR}/${PATCH_NAME})
+        endif()
+
+        if(USE_CPM)
+            if(PATCH_NAME)
+                set(PATCH_CMD ${PATCH_NAME})
+            endif()
+            CPMAddPackage(
+                NAME ${CURRENT_TARGET}
+                GIT_REPOSITORY ${CURRENT_REPO}
+                GIT_TAG        ${CURRENT_VERSION}
+                PATCHES        ${PATCH_CMD}
+                DOWNLOAD_ONLY  ${DOWNLOAD_ONLY}
+            )
+        else()
+            if(PATCH_NAME)
+                set(PATCH_CMD git apply ${PATCH_NAME})
+            endif()
+            if(DOWNLOAD_ONLY STREQUAL "YES")
+                set(DOWNLOAD_ONLY EXCLUDE_FROM_ALL)
+            else()
+                unset(DOWNLOAD_ONLY)
+            endif()
+            include(FetchContent)
+            FetchContent_Declare(
+                ${CURRENT_TARGET}
+                GIT_REPOSITORY   ${CURRENT_REPO}
+                GIT_TAG          ${CURRENT_VERSION}
+                PATCH_COMMAND    ${PATCH_CMD}
+                ${DOWNLOAD_ONLY}
+                UPDATE_DISCONNECTED 1
+            )
+            FetchContent_MakeAvailable(${CURRENT_TARGET})
+        endif()
+
+        set(${CURRENT_TARGET}_POPULATED ${${CURRENT_TARGET}_POPULATED} PARENT_SCOPE)
+        set(${CURRENT_TARGET}_SOURCE_DIR ${${CURRENT_TARGET}_SOURCE_DIR} PARENT_SCOPE)
+        set(${CURRENT_TARGET}_BINARY_DIR ${${CURRENT_TARGET}_BINARY_DIR} PARENT_SCOPE)
+    endfunction()
+endif(NOT COMMAND AddExternalPackage)
 
 
 # add subdir
