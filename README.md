@@ -1,6 +1,6 @@
 # SQLiteFS
 
-Simulate a local fs inside a sqlite database. Based on SQLite 3.48.0.
+Simulate a local fs inside a sqlite database. Based on SQLite 3.49.1.
 
 Uses:
 
