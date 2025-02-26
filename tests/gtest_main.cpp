@@ -65,8 +65,8 @@ TEST_F(FSFixture, CreateFolder) {
     ASSERT_EQ(db->ls("."), expected2);
     ASSERT_EQ(db->ls(".."), expected);
 
-    std::string               data("random test data");
-    std::vector<std::uint8_t> content{data.begin(), data.end()};
+    std::string       data("random test data");
+    std::vector<char> content(data.begin(), data.end());
     ASSERT_TRUE(db->write("test.txt", content));
 
     // ls one file
@@ -148,8 +148,8 @@ TEST_F(FSFixture, ChangeFolder) {
 
     ASSERT_FALSE(db->rm("/"));
 
-    std::string               data("random test data");
-    std::vector<std::uint8_t> content{data.begin(), data.end()};
+    std::string       data("random test data");
+    std::vector<char> content(data.begin(), data.end());
     ASSERT_TRUE(db->write("test.txt", content));
     ASSERT_FALSE(db->cd("test.txt"));
 }
@@ -158,8 +158,8 @@ TEST_F(FSFixture, ChangeFolder) {
 TEST_F(FSFixture, PutFile) {
     ASSERT_EQ(db->pwd(), "/");
 
-    std::string               data("random test data");
-    std::vector<std::uint8_t> content{data.begin(), data.end()};
+    std::string       data("random test data");
+    std::vector<char> content(data.begin(), data.end());
 
     ASSERT_TRUE(db->write("test.txt", content));
     ASSERT_FALSE(db->write("test.txt", content));
@@ -194,8 +194,9 @@ TEST_F(FSFixture, PutFile) {
 TEST_F(FSFixture, PutGetFile) {
     ASSERT_EQ(db->pwd(), "/");
 
-    std::string               data("random test data");
-    std::vector<std::uint8_t> content{data.begin(), data.end()};
+    std::string       data("random test data");
+    std::vector<char> content(data.begin(), data.end());
+
     {
         ASSERT_TRUE(db->write("test2.txt", content, "raw"));
         auto read_data = db->read("test2.txt");
@@ -220,8 +221,8 @@ TEST_F(FSFixture, PutGetFile) {
 TEST_F(FSFixture, PutGetFileWithModification) {
     ASSERT_EQ(db->pwd(), "/");
 
-    std::string               data("random test data");
-    std::vector<std::uint8_t> content{data.begin(), data.end()};
+    std::string       data("random test data");
+    std::vector<char> content(data.begin(), data.end());
 
     {
         ASSERT_TRUE(db->write("test.txt", content));
@@ -256,8 +257,8 @@ TEST_F(FSFixture, PutGetFileWithCustomConvertFunction) {
     db->registerLoadFunc("reverse",
                          [](SQLiteFS::DataInput data) { return SQLiteFS::DataOutput{data.rbegin(), data.rend()}; });
 
-    std::string               data("random test data");
-    std::vector<std::uint8_t> content{data.begin(), data.end()};
+    std::string       data("random test data");
+    std::vector<char> content(data.begin(), data.end());
 
     {
         ASSERT_TRUE(db->write("test.txt", content, "reverse"));
@@ -281,8 +282,8 @@ TEST_F(FSFixture, PutGetFileWithComplexComplexConvertFunction) {
         return db->callLoadFunc("raw", still_packed);
     });
 
-    std::string               data("random test data");
-    std::vector<std::uint8_t> content{data.begin(), data.end()};
+    std::string       data("random test data");
+    std::vector<char> content(data.begin(), data.end());
 
     {
         ASSERT_TRUE(db->write("test.txt", content, "myComplexFunc"));
@@ -301,8 +302,9 @@ TEST_F(FSFixture, MoveFileOrFolder) {
     ASSERT_TRUE(db->mkdir("f5"));
 
 
-    std::string               data("random test data");
-    std::vector<std::uint8_t> content{data.begin(), data.end()};
+    std::string       data("random test data");
+    std::vector<char> content(data.begin(), data.end());
+
     ASSERT_TRUE(db->write("/f1/test.txt", content));
 
     {
@@ -362,8 +364,9 @@ TEST_F(FSFixture, CopyFile) {
     ASSERT_TRUE(db->mkdir("f5"));
 
 
-    std::string               data("random test data");
-    std::vector<std::uint8_t> content{data.begin(), data.end()};
+    std::string       data("random test data");
+    std::vector<char> content(data.begin(), data.end());
+
     ASSERT_TRUE(db->write("/f1/test.txt", content));
 
     {
@@ -413,8 +416,9 @@ TEST_F(FSFixture, CopyFileMT) {
     ASSERT_TRUE(db->mkdir("f1"));
     ASSERT_TRUE(db->mkdir("f2"));
 
-    std::string               data("random test data");
-    std::vector<std::uint8_t> content{data.begin(), data.end()};
+    std::string       data("random test data");
+    std::vector<char> content(data.begin(), data.end());
+
     ASSERT_TRUE(db->write("/f1/test.txt", content));
 
     auto f = [&](int id) {
@@ -449,7 +453,7 @@ TEST_F(FSFixture, CopyFileMT) {
     std::vector<std::jthread> threads;
     threads.reserve(std::thread::hardware_concurrency());
 
-    for (int i = 0; i < std::thread::hardware_concurrency(); i++) {
+    for (size_t i = 0; i < std::thread::hardware_concurrency(); i++) {
         threads.emplace_back(f, i * 10000);
     }
 }
@@ -465,8 +469,9 @@ TEST(Manual, manual) {
     ASSERT_TRUE(db->mkdir("f1"));
     ASSERT_TRUE(db->mkdir("f2"));
 
-    std::string               data("random test data");
-    std::vector<std::uint8_t> content{data.begin(), data.end()};
+    std::string       data("random test data");
+    std::vector<char> content(data.begin(), data.end());
+
     ASSERT_TRUE(db->write("/f1/test.txt", content));
     ASSERT_TRUE(db->cp("/f1/test.txt", "/f2/test2.txt"));
 }

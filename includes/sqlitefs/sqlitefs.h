@@ -27,7 +27,7 @@ struct SQLiteFSNode final {
 };
 
 struct SQLiteFS {
-    using Data            = std::uint8_t;
+    using Data            = char;
     using DataInput       = std::span<const Data>;
     using DataOutput      = std::vector<Data>;
     using ConvertFunc     = std::function<DataOutput(DataInput)>;

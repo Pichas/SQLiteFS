@@ -207,7 +207,7 @@ struct SQLiteFS::Impl {
             }
 
             auto data = data_query.getColumn(0).getString();
-            auto view = std::span{reinterpret_cast<const std::uint8_t*>(data.data()), data.size()};
+            auto view = std::span{reinterpret_cast<const char*>(data.data()), data.size()};
 
             const auto& raw_data = internalCall(current_node->compression, view, m_load_funcs);
             if (static_cast<std::size_t>(current_node->size_raw) != raw_data.size()) {
