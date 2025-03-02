@@ -9,7 +9,7 @@ set(SQLITE_THREADSAFE 0 CACHE STRING "Set threading mode (0 = single-threaded, 1
 
 AddExternalPackage(
     sqlite3mc
-        v2.0.4
+        v2.1.0
         https://github.com/utelle/SQLite3MultipleCiphers.git
         NO
         NO

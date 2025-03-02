@@ -56,6 +56,20 @@ SQLite::Statement SQLiteFS::Impl::select(const std::string& query_string, Args&&
     return query;
 }
 
+bool SQLiteFS::Impl::saveBlob(std::uint32_t id, DataInput data) {
+    SQLITEFS_SCOPED_PROFILER;
+    using namespace std::literals;
+
+    try {
+        SQLite::Statement query{m_db, SET_FILE_DATA};
+        query.bind(1, id);
+        query.bindNoCopy(2, data.data(), data.size());
+        return query.exec();
+    } catch (std::exception& e) { m_last_error = "SQL Error: "s + e.what(); }
+    return false;
+}
+
+
 SQLiteFS::Impl::Impl(std::string path, std::string_view key)
   : m_db_path(std::move(path)), m_db(m_db_path, SQLite::OPEN_READWRITE | SQLite::OPEN_CREATE) {
     if (!key.empty()) {
@@ -380,21 +394,6 @@ void SQLiteFS::Impl::rawCall(const std::function<void(SQLite::Database*)>& callb
     std::lock_guard lock(m_mutex);
     std::invoke(callback, &m_db);
 }
-
-
-bool SQLiteFS::Impl::saveBlob(std::uint32_t id, DataInput data) {
-    SQLITEFS_SCOPED_PROFILER;
-    using namespace std::literals;
-
-    try {
-        SQLite::Statement query{m_db, SET_FILE_DATA};
-        query.bind(1, id);
-        query.bind(2, data.data(), data.size());
-        return query.exec();
-    } catch (std::exception& e) { m_last_error = "SQL Error: "s + e.what(); }
-    return false;
-}
-
 
 std::optional<SQLiteFSNode> SQLiteFS::Impl::node(const std::string& path) const {
     SQLITEFS_SCOPED_PROFILER;
