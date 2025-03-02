@@ -25,10 +25,12 @@ option(MZ_BUILD_UNIT_TESTS "Builds minizip unit test project" OFF)
 option(MZ_BUILD_FUZZ_TESTS "Builds minizip fuzzer executables" OFF)
 option(MZ_CODE_COVERAGE "Builds with code coverage flags" OFF)
 
-AddExternalPackage(
-    minizip
-        4.0.7
-        https://github.com/zlib-ng/minizip-ng.git
-        NO
-        NO
-)
+if(MZ_ENABLE)
+    AddExternalPackage(
+        minizip
+            4.0.7
+            https://github.com/zlib-ng/minizip-ng.git
+            NO
+            NO
+    )
+endif()

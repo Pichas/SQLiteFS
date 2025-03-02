@@ -47,6 +47,7 @@ const inline std::string PWD = R"query(
 // clang-format off
 
 const inline std::string LS             = R"query(SELECT * FROM fs WHERE parent IS ?)query";
+const inline std::string LS_COUNT       = R"query(SELECT COUNT(*) FROM fs WHERE parent IS ?)query";
 const inline std::string GET_NODE_BY_ID = R"query(SELECT * FROM fs WHERE id IS ?)query";
 const inline std::string GET_NODE       = R"query(SELECT * FROM fs WHERE parent IS ? AND name IS ?)query";
 const inline std::string RM             = R"query(DELETE FROM fs WHERE id IS ?)query";

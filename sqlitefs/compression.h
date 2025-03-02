@@ -5,13 +5,13 @@
 #include <mz_strm.h>
 #include <mz_strm_mem.h>
 #include <mz_strm_os.h>
+#include <sqlitefs/sqlitefs.h>
 #include <SQLiteCpp/SQLiteCpp.h>
-#include "sqlitefs/sqlitefs.h"
 #include "utils.h"
 
 
 inline SQLiteFS::DataOutput minizipCompress(SQLiteFS::DataInput source, mz_stream_create_cb create_compress) {
-    SQLITE_SCOPED_PROFILER;
+    SQLITEFS_SCOPED_PROFILER;
 
     std::size_t result = 0;
 
@@ -69,7 +69,7 @@ inline SQLiteFS::DataOutput minizipCompress(SQLiteFS::DataInput source, mz_strea
 
 
 inline SQLiteFS::DataOutput minizipDecompress(SQLiteFS::DataInput source, mz_stream_create_cb create_compress) {
-    SQLITE_SCOPED_PROFILER;
+    SQLITEFS_SCOPED_PROFILER;
 
     std::size_t result = 0;
 
@@ -92,7 +92,6 @@ inline SQLiteFS::DataOutput minizipDecompress(SQLiteFS::DataInput source, mz_str
     assert(result == MZ_OK);
 
     mz_stream_seek(raw_stream, 0, MZ_SEEK_SET);
-    // mz_stream_seek(compress_stream, 0, MZ_SEEK_SET);
 
     void* inflate_stream = create_compress();
     assert(inflate_stream != nullptr);
